@@ -6,25 +6,33 @@
 <title>Calorie Tracker</title>
 <style>
   :root {
-    --bg: #f6f7f9;
+    --bg: #f7f3ec;
+    --bg-2: #f1ebe1;
     --card: #ffffff;
-    --border: #e2e5ea;
-    --text: #1d2330;
-    --muted: #6b7280;
-    --accent: #2f6fed;
-    --accent-soft: #e7eefc;
-    --danger: #dc2626;
-    --ok: #16a34a;
-    --radius: 12px;
+    --border: #ece4d8;
+    --text: #2c2a25;
+    --muted: #8c8377;
+    --accent: #2f9e6e;
+    --accent-d: #268a5f;
+    --accent-soft: #e3f3ea;
+    --coral: #f2674f;
+    --danger: #d64541;
+    --danger-soft: #fbe9e7;
+    --radius: 16px;
+    --shadow-sm: 0 1px 2px rgba(74, 60, 42, .05);
+    --shadow: 0 2px 8px rgba(74, 60, 42, .05), 0 18px 36px -22px rgba(74, 60, 42, .35);
   }
 
   * { box-sizing: border-box; }
 
   body {
     margin: 0;
-    background: var(--bg);
+    background: linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+    background-attachment: fixed;
     color: var(--text);
-    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   .container {
@@ -33,15 +41,69 @@
     padding: 24px 16px 64px;
   }
 
-  h1 {
-    font-size: 24px;
-    margin: 8px 0 24px;
+  /* Header */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 4px 2px 26px;
+  }
+  .brand { display: flex; align-items: center; gap: 13px; }
+  .brand .logo {
+    width: 44px; height: 44px;
+    border-radius: 13px;
+    box-shadow: var(--shadow-sm);
+    flex-shrink: 0;
+    display: block;
+  }
+  .brand h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -.02em;
+    margin: 0;
+  }
+  .brand .tagline {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+  .today-stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 9px 16px;
+    box-shadow: var(--shadow);
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .today-stat .label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .today-stat .value {
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+  }
+  .today-stat .value span {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-left: 3px;
   }
 
   h2 {
-    font-size: 16px;
-    margin: 0 0 16px;
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 18px;
     color: var(--text);
+    letter-spacing: -.01em;
   }
 
   .section-head {
@@ -49,42 +111,44 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 16px;
+    margin-bottom: 18px;
   }
   .section-head h2 { margin: 0; }
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 
   .card {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 20px;
-    margin-bottom: 24px;
+    padding: 22px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
   }
 
   label {
     display: block;
     font-size: 13px;
     font-weight: 600;
-    color: var(--muted);
-    margin-bottom: 6px;
+    color: var(--text);
+    margin-bottom: 7px;
   }
 
-  .field { margin-bottom: 16px; }
+  .field { margin-bottom: 18px; }
 
-  .optional-note { color: var(--muted); font-weight: 400; text-transform: none; }
+  .optional-note { color: var(--muted); font-weight: 400; }
 
   input[type="text"],
   input[type="number"],
   input[type="date"],
   input[type="time"] {
     width: 100%;
-    padding: 10px 12px;
+    padding: 11px 13px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 15px;
-    background: #fff;
+    background: #fffdfb;
     color: var(--text);
+    transition: border-color .12s, box-shadow .12s;
   }
 
   input:focus {
@@ -97,7 +161,7 @@
   .segmented {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 7px;
   }
   .segmented input { position: absolute; opacity: 0; pointer-events: none; }
   .segmented label {
@@ -110,14 +174,15 @@
     color: var(--text);
     cursor: pointer;
     user-select: none;
-    background: #fff;
-    transition: background .12s, border-color .12s, color .12s;
+    background: #fffdfb;
+    transition: background .14s, border-color .14s, color .14s, box-shadow .14s;
   }
-  .segmented label:hover { border-color: var(--accent); }
+  .segmented label:hover { border-color: var(--accent); color: var(--accent-d); }
   .segmented input:checked + label {
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
+    box-shadow: 0 4px 12px -5px var(--accent);
   }
   .segmented input:focus-visible + label {
     box-shadow: 0 0 0 3px var(--accent-soft);
@@ -127,44 +192,52 @@
     display: flex;
     gap: 16px;
   }
-  .row > .field { flex: 1; margin-bottom: 16px; }
+  .row > .field { flex: 1; margin-bottom: 18px; }
 
   .quick {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-top: 8px;
+    margin-top: 9px;
   }
   .quick button {
-    padding: 5px 10px;
+    padding: 5px 11px;
     font-size: 12px;
+    font-weight: 500;
     border: 1px solid var(--border);
-    background: #fff;
+    background: #fffdfb;
     color: var(--muted);
     border-radius: 999px;
     cursor: pointer;
+    transition: border-color .12s, color .12s, background .12s;
   }
-  .quick button:hover { border-color: var(--accent); color: var(--accent); }
+  .quick button:hover { border-color: var(--accent); color: var(--accent-d); background: var(--accent-soft); }
 
   .actions {
     display: flex;
     gap: 10px;
     align-items: center;
-    margin-top: 8px;
+    margin-top: 6px;
   }
 
   .btn {
-    padding: 10px 18px;
-    border-radius: 8px;
+    padding: 11px 20px;
+    border-radius: 11px;
     border: 1px solid transparent;
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
+    transition: background .14s, transform .08s, box-shadow .14s, color .14s, border-color .14s;
   }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #2559c9; }
-  .btn-ghost { background: #fff; color: var(--muted); border-color: var(--border); }
-  .btn-ghost:hover { color: var(--text); }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 8px 18px -7px var(--accent);
+  }
+  .btn-primary:hover { background: var(--accent-d); transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-ghost { background: #fffdfb; color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent-d); background: var(--accent-soft); }
 
   .error {
     color: var(--danger);
@@ -175,75 +248,125 @@
 
   /* Chart */
   .chart-wrap { overflow-x: auto; }
-  svg { display: block; }
-  .bar { fill: var(--accent); }
-  .bar:hover { fill: #2559c9; }
-  .bar-value { fill: var(--text); font-size: 11px; font-weight: 600; text-anchor: middle; }
+  .chart-wrap svg { display: block; margin: 0 auto; }
+  .bar-value { fill: var(--text); font-size: 11.5px; font-weight: 700; text-anchor: middle; font-variant-numeric: tabular-nums; }
   .axis-label { fill: var(--muted); font-size: 11px; text-anchor: middle; }
-  .axis-line { stroke: var(--border); stroke-width: 1; }
+  .axis-label.today { fill: var(--coral); font-weight: 700; }
+  .axis-line { stroke: #efe7da; stroke-width: 1; }
 
   /* Table */
-  .table-scroll { overflow-x: auto; }
+  .table-scroll { overflow-x: auto; margin: 0 -4px; }
   table { width: 100%; border-collapse: collapse; }
   th, td {
     text-align: left;
-    padding: 10px 12px;
+    padding: 11px 9px;
     border-bottom: 1px solid var(--border);
     font-size: 14px;
   }
-  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
-  td.num, th.num { text-align: right; }
+  th:first-child, td:first-child { padding-left: 4px; }
+  th:last-child, td:last-child { padding-right: 4px; }
+  td.nowrap, th.nowrap { white-space: nowrap; }
+  thead th { border-bottom-width: 1.5px; }
+  th { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+  tbody tr { transition: background .12s; }
+  tbody tr:hover { background: #faf7f1; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.what { font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   td.muted-cell { color: var(--muted); }
+
   .tag {
     display: inline-block;
-    padding: 2px 10px;
+    padding: 3px 11px;
     border-radius: 999px;
     background: var(--accent-soft);
-    color: var(--accent);
+    color: var(--accent-d);
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
+    line-height: 1.45;
   }
-  .link-btn {
+  .tag-green  { background: #e3f3ea; color: #1f8a5b; }
+  .tag-red    { background: #fbe7e4; color: #cc3f39; }
+  .tag-amber  { background: #fbeed8; color: #b0710a; }
+  .tag-slate  { background: #edeef1; color: #5d6b7a; }
+  .tag-orange { background: #fce9d9; color: #bd6510; }
+  .tag-teal   { background: #def2f0; color: #1c8a86; }
+  .tag-purple { background: #f0e8fb; color: #7a4fce; }
+  .tag-blue   { background: #e6eefc; color: #2f6fed; }
+
+  .icon-btn {
     background: none;
-    border: none;
-    padding: 0;
+    border: 1px solid transparent;
+    padding: 5px 11px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    color: var(--accent);
+    color: var(--accent-d);
+    border-radius: 8px;
+    transition: background .12s, color .12s;
   }
-  .link-btn.danger { color: var(--danger); }
-  .link-btn:hover { text-decoration: underline; }
+  .icon-btn:hover { background: var(--accent-soft); }
+  .icon-btn.danger { color: var(--danger); }
+  .icon-btn.danger:hover { background: var(--danger-soft); }
   .table-actions { white-space: nowrap; }
-  .table-actions button + button { margin-left: 12px; }
+  .table-actions button + button { margin-left: 4px; }
 
   .empty {
     color: var(--muted);
     text-align: center;
-    padding: 28px 0;
+    padding: 34px 0;
     font-size: 14px;
   }
 
   .editing-banner {
-    background: var(--accent-soft);
-    color: var(--accent);
+    background: #fff5ea;
+    color: #b0710a;
+    border: 1px solid #f6e2c4;
     font-size: 13px;
     font-weight: 600;
-    padding: 8px 12px;
-    border-radius: 8px;
-    margin-bottom: 16px;
+    padding: 9px 13px;
+    border-radius: 10px;
+    margin-bottom: 18px;
   }
   .hidden { display: none; }
 
   @media (max-width: 560px) {
     .row { flex-direction: column; gap: 0; }
+    .brand h1 { font-size: 19px; }
+    .brand .logo { width: 40px; height: 40px; }
+    .today-stat { padding: 7px 13px; }
+    .today-stat .value { font-size: 18px; }
+    .card { padding: 18px; }
   }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🍽️ Calorie Tracker</h1>
+  <header class="app-header">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">
+        <defs>
+          <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#43b582" />
+            <stop offset="1" stop-color="#268a5f" />
+          </linearGradient>
+        </defs>
+        <rect width="44" height="44" rx="13" fill="url(#logoGrad)" />
+        <path d="M22 16 C19.5 13.8 15 14.2 14 18 C13.2 21 14.6 26.5 18 28.8 C20 30 21 29.4 22 29 C23 29.4 24 30 26 28.8 C29.4 26.5 30.8 21 30 18 C29 14.2 24.5 13.8 22 16 Z" fill="#ffffff" />
+        <path d="M22 15.6 Q22.6 12.6 24.4 11.4" stroke="#cdebd9" stroke-width="1.6" fill="none" stroke-linecap="round" />
+        <ellipse cx="25.6" cy="12.4" rx="2.7" ry="1.5" transform="rotate(-32 25.6 12.4)" fill="#cdebd9" />
+      </svg>
+      <div>
+        <h1>Calorie Tracker</h1>
+        <div class="tagline">Log it. See your day.</div>
+      </div>
+    </div>
+    <div class="today-stat">
+      <div class="label">Today</div>
+      <div class="value" id="today-value">0<span>cal</span></div>
+    </div>
+  </header>
 
   <!-- 1. Entry form -->
   <section class="card">
@@ -426,9 +549,19 @@
   }
 
   // --- Datetime helpers (local time) ---
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
   function dateStr(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
   function timeStr(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  // Friendly, compact date for the table (e.g. "Jun 29"); adds the year only
+  // when it isn't the current year. The stored ISO date is unchanged.
+  function formatDateShort(iso) {
+    var p = String(iso).split("-");
+    if (p.length !== 3) return iso;
+    var s = MONTHS[(+p[1]) - 1] + " " + (+p[2]);
+    if (+p[0] !== new Date().getFullYear()) s += ", " + p[0];
+    return s;
+  }
 
   // --- Form helpers ---
   function getSelected(container) {
@@ -628,10 +761,21 @@
   exportBtn.addEventListener("click", downloadCsv);
 
   // --- Rendering ---
+  var todayValueEl = document.getElementById("today-value");
+
   function render() {
     renderChart();
     renderTable();
+    renderTodayStat();
     exportBtn.disabled = entries.length === 0;
+  }
+
+  function renderTodayStat() {
+    var today = dateStr(new Date());
+    var total = entries.reduce(function (sum, en) {
+      return en.date === today ? sum + en.estimatedCalories : sum;
+    }, 0);
+    todayValueEl.innerHTML = total + "<span>cal</span>";
   }
 
   function renderChart() {
@@ -652,25 +796,46 @@
     var maxVal = 0;
     dates.forEach(function (d) { if (totals[d] > maxVal) maxVal = totals[d]; });
 
+    var todayKey = dateStr(new Date());
+
     // Layout
-    var padTop = 24, padBottom = 48, padLeft = 48, padRight = 12;
-    var barSlot = 56;
-    var barW = 34;
-    var plotH = 200;
+    var padTop = 28, padBottom = 46, padLeft = 50, padRight = 16;
+    var barSlot = 64;
+    var barW = 38;
+    var plotH = 210;
     var width = padLeft + padRight + dates.length * barSlot;
     var minWidth = 320;
     if (width < minWidth) width = minWidth;
     var height = padTop + plotH + padBottom;
     var baseY = padTop + plotH;
 
+    // Path for a bar with only its top two corners rounded.
+    function topRoundedRect(x, y, w, h, r) {
+      r = Math.max(0, Math.min(r, h, w / 2));
+      return "M" + x + "," + (y + h) +
+        " L" + x + "," + (y + r) +
+        " Q" + x + "," + y + " " + (x + r) + "," + y +
+        " L" + (x + w - r) + "," + y +
+        " Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) +
+        " L" + (x + w) + "," + (y + h) + " Z";
+    }
+
     var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Bar chart of total calories per day">';
+    svg += '<defs>' +
+      '<linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="#43b582" /><stop offset="1" stop-color="#2f9e6e" />' +
+      '</linearGradient>' +
+      '<linearGradient id="todayGrad" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="#f88b74" /><stop offset="1" stop-color="#f2674f" />' +
+      '</linearGradient>' +
+      '</defs>';
 
     // Y axis gridlines/labels (0, half, max)
     var ticks = [0, maxVal / 2, maxVal];
     ticks.forEach(function (t) {
       var y = baseY - (maxVal ? (t / maxVal) * plotH : 0);
       svg += '<line class="axis-line" x1="' + padLeft + '" y1="' + y + '" x2="' + (width - padRight) + '" y2="' + y + '" />';
-      svg += '<text class="axis-label" x="' + (padLeft - 8) + '" y="' + (y + 4) + '" style="text-anchor:end">' + Math.round(t) + '</text>';
+      svg += '<text class="axis-label" x="' + (padLeft - 10) + '" y="' + (y + 4) + '" style="text-anchor:end">' + Math.round(t) + '</text>';
     });
 
     dates.forEach(function (d, i) {
@@ -678,11 +843,13 @@
       var h = maxVal ? (val / maxVal) * plotH : 0;
       var x = padLeft + i * barSlot + (barSlot - barW) / 2;
       var y = baseY - h;
-      svg += '<rect class="bar" x="' + x + '" y="' + y + '" width="' + barW + '" height="' + h + '" rx="4"><title>' + d + ': ' + val + ' cal</title></rect>';
-      svg += '<text class="bar-value" x="' + (x + barW / 2) + '" y="' + (y - 5) + '">' + val + '</text>';
-      // X label: show MM-DD to keep compact
-      var lbl = d.slice(5);
-      svg += '<text class="axis-label" x="' + (x + barW / 2) + '" y="' + (baseY + 16) + '">' + lbl + '</text>';
+      var isToday = d === todayKey;
+      var fill = isToday ? "url(#todayGrad)" : "url(#barGrad)";
+      svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="' + fill + '"><title>' + d + ": " + val + " cal</title></path>";
+      svg += '<text class="bar-value" x="' + (x + barW / 2) + '" y="' + (y - 7) + '">' + val + '</text>';
+      // X label: show MM-DD to keep compact; today gets emphasized + named.
+      var lbl = isToday ? "Today" : d.slice(5);
+      svg += '<text class="axis-label' + (isToday ? " today" : "") + '" x="' + (x + barW / 2) + '" y="' + (baseY + 18) + '">' + lbl + '</text>';
     });
 
     svg += '</svg>';
@@ -695,6 +862,18 @@
     });
   }
 
+  // Semantic chip colors so the table reads at a glance.
+  var CATEGORY_TAG = { Breakfast: "tag-orange", Lunch: "tag-green", Dinner: "tag-purple", Beverage: "tag-teal", Snack: "tag-blue" };
+  var SELF_TAG = { "Nasty": "tag-red", "Healthy": "tag-green", "Healthy but high calorie": "tag-amber", "Misc": "tag-slate" };
+
+  function chip(value, cls) {
+    return '<span class="tag ' + (cls || "") + '">' + escapeHtml(value) + "</span>";
+  }
+  // A chip cell, or an em-dash when the optional value is blank.
+  function chipCell(value, cls) {
+    return value ? "<td>" + chip(value, cls) + "</td>" : '<td class="muted-cell">—</td>';
+  }
+
   function renderTable() {
     var wrap = document.getElementById("table-wrap");
     if (entries.length === 0) {
@@ -704,31 +883,24 @@
 
     var sorted = sortedNewestFirst();
 
-    // Render an optional tag, or an em-dash when the value is blank.
-    function tagCell(value) {
-      return value
-        ? '<td><span class="tag">' + escapeHtml(value) + '</span></td>'
-        : '<td class="muted-cell">—</td>';
-    }
-
     var html = '<div class="table-scroll"><table><thead><tr>' +
       '<th>What</th><th>Category</th><th>Self assessment</th><th>Prep mode</th>' +
-      '<th>Date</th><th>Time</th>' +
-      '<th class="num">Estimated cals</th><th>Actions</th>' +
+      '<th class="nowrap">Date</th><th>Time</th>' +
+      '<th class="num nowrap">Cals</th><th>Actions</th>' +
       '</tr></thead><tbody>';
 
     sorted.forEach(function (en) {
       html += '<tr>' +
-        '<td>' + escapeHtml(en.what) + '</td>' +
-        '<td><span class="tag">' + escapeHtml(en.category) + '</span></td>' +
-        tagCell(en.selfAssessment) +
-        tagCell(en.prepMode) +
-        '<td>' + escapeHtml(en.date) + '</td>' +
-        '<td>' + escapeHtml(en.time) + '</td>' +
+        '<td class="what">' + escapeHtml(en.what) + '</td>' +
+        '<td>' + chip(en.category, CATEGORY_TAG[en.category]) + '</td>' +
+        chipCell(en.selfAssessment, SELF_TAG[en.selfAssessment]) +
+        chipCell(en.prepMode, "tag-slate") +
+        '<td class="nowrap">' + escapeHtml(formatDateShort(en.date)) + '</td>' +
+        '<td class="nowrap">' + escapeHtml(en.time) + '</td>' +
         '<td class="num">' + en.estimatedCalories + '</td>' +
         '<td class="table-actions">' +
-          '<button class="link-btn" data-edit="' + en.id + '">Edit</button>' +
-          '<button class="link-btn danger" data-delete="' + en.id + '">Delete</button>' +
+          '<button class="icon-btn" data-edit="' + en.id + '">Edit</button>' +
+          '<button class="icon-btn danger" data-delete="' + en.id + '">Delete</button>' +
         '</td>' +
       '</tr>';
     });
