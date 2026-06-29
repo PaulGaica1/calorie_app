@@ -44,6 +44,16 @@
     color: var(--text);
   }
 
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .section-head h2 { margin: 0; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
   .card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -302,7 +312,10 @@
 
   <!-- 3. Entries table -->
   <section class="card">
-    <h2>Entries</h2>
+    <div class="section-head">
+      <h2>Entries</h2>
+      <button type="button" class="btn btn-ghost" id="export-btn">Export CSV</button>
+    </div>
     <div id="table-wrap"></div>
   </section>
 </div>
@@ -333,6 +346,7 @@
   var saveBtn = document.getElementById("save-btn");
   var cancelBtn = document.getElementById("cancel-btn");
   var editingBanner = document.getElementById("editing-banner");
+  var exportBtn = document.getElementById("export-btn");
 
   // --- Build segmented controls ---
   // optional=true lets the user clear the choice by tapping the selected option
@@ -566,10 +580,58 @@
     });
   });
 
+  // Entries sorted by timestamp, newest first (shared by table + CSV export).
+  function sortedNewestFirst() {
+    return entries.slice().sort(function (a, b) {
+      return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
+    });
+  }
+
+  // --- CSV export ---
+  // Quote every field and double any embedded quotes so commas, quotes and
+  // newlines inside values can't break the columns.
+  function escapeCsv(value) {
+    return '"' + String(value == null ? "" : value).replace(/"/g, '""') + '"';
+  }
+
+  function entriesToCsv() {
+    var columns = ["What", "Category", "Self assessment", "Prep mode", "Date", "Time", "Estimated cals"];
+    var lines = [columns.map(escapeCsv).join(",")];
+    sortedNewestFirst().forEach(function (en) {
+      lines.push([
+        en.what,
+        en.category,
+        en.selfAssessment || "",
+        en.prepMode || "",
+        en.date,
+        en.time,
+        en.estimatedCalories
+      ].map(escapeCsv).join(","));
+    });
+    return lines.join("\r\n");
+  }
+
+  function downloadCsv() {
+    if (entries.length === 0) return;
+    // Leading BOM so Excel reads UTF-8 (accented characters) correctly.
+    var blob = new Blob(["﻿" + entriesToCsv()], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "calorie-entries-" + dateStr(new Date()) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  exportBtn.addEventListener("click", downloadCsv);
+
   // --- Rendering ---
   function render() {
     renderChart();
     renderTable();
+    exportBtn.disabled = entries.length === 0;
   }
 
   function renderChart() {
@@ -640,10 +702,7 @@
       return;
     }
 
-    // Sort by timestamp, newest first.
-    var sorted = entries.slice().sort(function (a, b) {
-      return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
-    });
+    var sorted = sortedNewestFirst();
 
     // Render an optional tag, or an em-dash when the value is blank.
     function tagCell(value) {
