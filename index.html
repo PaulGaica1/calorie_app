@@ -788,7 +788,9 @@
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    a.download = "calorie-entries-" + dateStr(new Date()) + ".csv";
+    var now = new Date();
+    var stamp = dateStr(now) + "_" + pad(now.getHours()) + "-" + pad(now.getMinutes()) + "-" + pad(now.getSeconds());
+    a.download = "data_furball_lol_" + stamp + ".csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
