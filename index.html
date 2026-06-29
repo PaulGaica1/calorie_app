@@ -62,6 +62,8 @@
 
   .field { margin-bottom: 16px; }
 
+  .optional-note { color: var(--muted); font-weight: 400; text-transform: none; }
+
   input[type="text"],
   input[type="number"],
   input[type="date"],
@@ -171,6 +173,7 @@
   .axis-line { stroke: var(--border); stroke-width: 1; }
 
   /* Table */
+  .table-scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; }
   th, td {
     text-align: left;
@@ -180,6 +183,7 @@
   }
   th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
   td.num, th.num { text-align: right; }
+  td.muted-cell { color: var(--muted); }
   .tag {
     display: inline-block;
     padding: 2px 10px;
@@ -246,6 +250,16 @@
         <div class="segmented" id="category-group"></div>
       </div>
 
+      <div class="field">
+        <label>Self assessment <span class="optional-note">(optional)</span></label>
+        <div class="segmented" id="self-group"></div>
+      </div>
+
+      <div class="field">
+        <label>Prep mode <span class="optional-note">(optional)</span></label>
+        <div class="segmented" id="prep-group"></div>
+      </div>
+
       <div class="row">
         <div class="field">
           <label for="date">Date</label>
@@ -298,7 +312,9 @@
   "use strict";
 
   var STORAGE_KEY = "calorie-entries";
-  var CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Beverage", "Snack - healthy", "Snack - nasty"];
+  var CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Beverage", "Snack"];
+  var SELF_ASSESSMENTS = ["Nasty", "Healthy", "Healthy but high calorie", "Misc"];
+  var PREP_MODES = ["Home cooked", "Fridge scraps", "Delivery", "Restaurant", "Meal Prep", "Pick-up"];
 
   // --- State ---
   var entries = loadEntries();
@@ -308,6 +324,8 @@
   var form = document.getElementById("entry-form");
   var whatEl = document.getElementById("what");
   var categoryGroup = document.getElementById("category-group");
+  var selfGroup = document.getElementById("self-group");
+  var prepGroup = document.getElementById("prep-group");
   var dateEl = document.getElementById("date");
   var timeEl = document.getElementById("time");
   var caloriesEl = document.getElementById("calories");
@@ -316,30 +334,74 @@
   var cancelBtn = document.getElementById("cancel-btn");
   var editingBanner = document.getElementById("editing-banner");
 
-  // --- Build category segmented control ---
-  CATEGORIES.forEach(function (cat, i) {
-    var id = "cat-" + i;
-    var input = document.createElement("input");
-    input.type = "radio";
-    input.name = "category";
-    input.id = id;
-    input.value = cat;
-    var label = document.createElement("label");
-    label.setAttribute("for", id);
-    label.textContent = cat;
-    categoryGroup.appendChild(input);
-    categoryGroup.appendChild(label);
-  });
+  // --- Build segmented controls ---
+  // optional=true lets the user clear the choice by tapping the selected option
+  // again (plain radio buttons can't be unchecked otherwise).
+  function buildSegmented(container, name, options, optional) {
+    options.forEach(function (opt, i) {
+      var id = name + "-" + i;
+      var input = document.createElement("input");
+      input.type = "radio";
+      input.name = name;
+      input.id = id;
+      input.value = opt;
+      var label = document.createElement("label");
+      label.setAttribute("for", id);
+      label.textContent = opt;
+      container.appendChild(input);
+      container.appendChild(label);
+
+      if (optional) {
+        input.addEventListener("click", function () {
+          // At click time this radio is already checked. If it was already the
+          // selected one before the click, clear the whole group instead.
+          if (input.getAttribute("data-was-checked") === "1") {
+            input.checked = false;
+          }
+          syncCheckedFlags(container);
+        });
+      }
+    });
+  }
+
+  // Record current checked state so the optional click-to-clear logic can tell
+  // whether a tapped option was already selected.
+  function syncCheckedFlags(container) {
+    container.querySelectorAll("input").forEach(function (inp) {
+      inp.setAttribute("data-was-checked", inp.checked ? "1" : "0");
+    });
+  }
+
+  buildSegmented(categoryGroup, "category", CATEGORIES, false);
+  buildSegmented(selfGroup, "selfAssessment", SELF_ASSESSMENTS, true);
+  buildSegmented(prepGroup, "prepMode", PREP_MODES, true);
 
   // --- Persistence ---
   function loadEntries() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
       var parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map(migrateEntry);
     } catch (e) {
       return [];
     }
+  }
+
+  // Bring entries saved before Self assessment / Prep mode existed up to date:
+  // fold the old "Snack - healthy/nasty" categories into "Snack" + a matching
+  // self assessment, and default the new fields to "".
+  function migrateEntry(en) {
+    en.selfAssessment = en.selfAssessment || "";
+    en.prepMode = en.prepMode || "";
+    if (en.category === "Snack - healthy") {
+      en.category = "Snack";
+      if (!en.selfAssessment) en.selfAssessment = "Healthy";
+    } else if (en.category === "Snack - nasty") {
+      en.category = "Snack";
+      if (!en.selfAssessment) en.selfAssessment = "Nasty";
+    }
+    return en;
   }
   function saveEntries() {
     try {
@@ -355,13 +417,15 @@
   function timeStr(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
 
   // --- Form helpers ---
-  function getSelectedCategory() {
-    var checked = categoryGroup.querySelector("input:checked");
+  function getSelected(container) {
+    var checked = container.querySelector("input:checked");
     return checked ? checked.value : "";
   }
-  function setSelectedCategory(value) {
-    var inputs = categoryGroup.querySelectorAll("input");
-    inputs.forEach(function (inp) { inp.checked = inp.value === value; });
+  function setSelected(container, value) {
+    container.querySelectorAll("input").forEach(function (inp) {
+      inp.checked = inp.value === value;
+    });
+    syncCheckedFlags(container);
   }
 
   // Reset form to a clean "create" state, re-filling date/time with the
@@ -372,7 +436,9 @@
     form.reset();
     whatEl.value = "";
     caloriesEl.value = "";
-    setSelectedCategory("");
+    setSelected(categoryGroup, "");
+    setSelected(selfGroup, "");
+    setSelected(prepGroup, "");
     dateEl.value = dateStr(now);
     timeEl.value = timeStr(now);
     errorEl.textContent = "";
@@ -384,7 +450,9 @@
   function loadEntryIntoForm(entry) {
     editingId = entry.id;
     whatEl.value = entry.what;
-    setSelectedCategory(entry.category);
+    setSelected(categoryGroup, entry.category);
+    setSelected(selfGroup, entry.selfAssessment || "");
+    setSelected(prepGroup, entry.prepMode || "");
     dateEl.value = entry.date;
     timeEl.value = entry.time;
     caloriesEl.value = entry.estimatedCalories;
@@ -402,8 +470,12 @@
     var what = whatEl.value.trim();
     if (!what) return { ok: false, message: "Please enter what you ate or drank." };
 
-    var category = getSelectedCategory();
+    var category = getSelected(categoryGroup);
     if (CATEGORIES.indexOf(category) === -1) return { ok: false, message: "Please choose a category." };
+
+    // Self assessment and prep mode are optional.
+    var selfAssessment = getSelected(selfGroup);
+    var prepMode = getSelected(prepGroup);
 
     var date = dateEl.value;
     if (!date || isNaN(new Date(date + "T00:00:00").getTime())) {
@@ -423,6 +495,8 @@
       value: {
         what: what,
         category: category,
+        selfAssessment: selfAssessment,
+        prepMode: prepMode,
         date: date,
         time: time,
         estimatedCalories: Math.round(calories)
@@ -446,6 +520,8 @@
       if (existing) {
         existing.what = v.what;
         existing.category = v.category;
+        existing.selfAssessment = v.selfAssessment;
+        existing.prepMode = v.prepMode;
         existing.date = v.date;
         existing.time = v.time;
         existing.estimatedCalories = v.estimatedCalories;
@@ -456,6 +532,8 @@
         id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
         what: v.what,
         category: v.category,
+        selfAssessment: v.selfAssessment,
+        prepMode: v.prepMode,
         date: v.date,
         time: v.time,
         estimatedCalories: v.estimatedCalories,
@@ -567,8 +645,16 @@
       return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
     });
 
-    var html = '<table><thead><tr>' +
-      '<th>What</th><th>Category</th><th>Date</th><th>Time</th>' +
+    // Render an optional tag, or an em-dash when the value is blank.
+    function tagCell(value) {
+      return value
+        ? '<td><span class="tag">' + escapeHtml(value) + '</span></td>'
+        : '<td class="muted-cell">—</td>';
+    }
+
+    var html = '<div class="table-scroll"><table><thead><tr>' +
+      '<th>What</th><th>Category</th><th>Self assessment</th><th>Prep mode</th>' +
+      '<th>Date</th><th>Time</th>' +
       '<th class="num">Estimated cals</th><th>Actions</th>' +
       '</tr></thead><tbody>';
 
@@ -576,6 +662,8 @@
       html += '<tr>' +
         '<td>' + escapeHtml(en.what) + '</td>' +
         '<td><span class="tag">' + escapeHtml(en.category) + '</span></td>' +
+        tagCell(en.selfAssessment) +
+        tagCell(en.prepMode) +
         '<td>' + escapeHtml(en.date) + '</td>' +
         '<td>' + escapeHtml(en.time) + '</td>' +
         '<td class="num">' + en.estimatedCalories + '</td>' +
@@ -586,7 +674,7 @@
       '</tr>';
     });
 
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     wrap.innerHTML = html;
 
     wrap.querySelectorAll("[data-edit]").forEach(function (btn) {
@@ -607,6 +695,7 @@
   }
 
   // --- Init ---
+  saveEntries(); // persist any one-time migration from loadEntries()
   resetForm();
   render();
 })();
