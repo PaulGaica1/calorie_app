@@ -163,6 +163,37 @@
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
+  /* What autocomplete */
+  .autocomplete-wrap { position: relative; }
+  .autocomplete {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 5px;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .ac-item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    cursor: pointer;
+  }
+  .ac-item:hover, .ac-item.active { background: var(--accent-soft); }
+  .ac-name { font-weight: 600; color: var(--text); }
+  .ac-hint { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+
   /* Segmented control */
   .segmented {
     display: flex;
@@ -412,7 +443,10 @@
     <form id="entry-form" novalidate>
       <div class="field">
         <label for="what">What</label>
-        <input type="text" id="what" placeholder="e.g. Chicken sandwich, Coffee, Pizza" autocomplete="off" />
+        <div class="autocomplete-wrap">
+          <input type="text" id="what" placeholder="e.g. Chicken sandwich, Coffee, Pizza" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="what-suggestions" aria-autocomplete="list" />
+          <ul id="what-suggestions" class="autocomplete hidden" role="listbox"></ul>
+        </div>
       </div>
 
       <div class="field">
@@ -507,6 +541,7 @@
   var cancelBtn = document.getElementById("cancel-btn");
   var editingBanner = document.getElementById("editing-banner");
   var exportBtn = document.getElementById("export-btn");
+  var suggestionsEl = document.getElementById("what-suggestions");
 
   // --- Build segmented controls ---
   // optional=true lets the user clear the choice by tapping the selected option
@@ -629,6 +664,7 @@
     saveBtn.textContent = "Save entry";
     cancelBtn.classList.add("hidden");
     editingBanner.classList.add("hidden");
+    hideSuggestions();
   }
 
   function loadEntryIntoForm(entry) {
@@ -756,6 +792,97 @@
       return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
     });
   }
+
+  // --- "What" autocomplete from past entries ---
+  var acItems = [];      // records currently shown in the dropdown
+  var acIndex = -1;      // highlighted item index (-1 = none)
+
+  // One canonical record per distinct (case-insensitive) "what", keeping the
+  // most recent by timestamp — that's the metadata a suggestion copies.
+  function canonicalByWhat() {
+    var map = {};
+    entries.forEach(function (en) {
+      var key = en.what.trim().toLowerCase();
+      if (!key) return;
+      if (!map[key] || en.timestamp > map[key].timestamp) map[key] = en;
+    });
+    return Object.keys(map).map(function (k) { return map[k]; });
+  }
+
+  function suggestionsFor(query) {
+    var q = query.trim().toLowerCase();
+    if (!q) return [];
+    return canonicalByWhat()
+      .filter(function (en) { return en.what.toLowerCase().indexOf(q) !== -1; })
+      .sort(function (a, b) { return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0; })
+      .slice(0, 6);
+  }
+
+  function hideSuggestions() {
+    suggestionsEl.classList.add("hidden");
+    suggestionsEl.innerHTML = "";
+    whatEl.setAttribute("aria-expanded", "false");
+    acItems = [];
+    acIndex = -1;
+  }
+
+  function showSuggestions() {
+    acItems = suggestionsFor(whatEl.value);
+    acIndex = -1;
+    if (acItems.length === 0) { hideSuggestions(); return; }
+    suggestionsEl.innerHTML = acItems.map(function (en, i) {
+      var hint = en.estimatedCalories + " cal · " + en.category;
+      return '<li class="ac-item" role="option" data-i="' + i + '">' +
+        '<span class="ac-name">' + escapeHtml(en.what) + '</span>' +
+        '<span class="ac-hint">' + escapeHtml(hint) + '</span></li>';
+    }).join("");
+    suggestionsEl.classList.remove("hidden");
+    whatEl.setAttribute("aria-expanded", "true");
+  }
+
+  // Copy a past entry's metadata + time into the form; date stays today.
+  function applySuggestion(rec) {
+    whatEl.value = rec.what;
+    setSelected(categoryGroup, rec.category);
+    setSelected(selfGroup, rec.selfAssessment || "");
+    setSelected(prepGroup, rec.prepMode || "");
+    caloriesEl.value = rec.estimatedCalories;
+    timeEl.value = rec.time;
+    dateEl.value = dateStr(new Date()); // keep the current day
+    hideSuggestions();
+    caloriesEl.focus();
+  }
+
+  function highlight(i) {
+    var lis = suggestionsEl.querySelectorAll(".ac-item");
+    lis.forEach(function (li) { li.classList.remove("active"); });
+    if (i >= 0 && i < lis.length) {
+      lis[i].classList.add("active");
+      lis[i].scrollIntoView({ block: "nearest" });
+    }
+    acIndex = i;
+  }
+
+  whatEl.addEventListener("input", showSuggestions);
+  whatEl.addEventListener("focus", function () { if (whatEl.value.trim()) showSuggestions(); });
+  whatEl.addEventListener("keydown", function (e) {
+    if (suggestionsEl.classList.contains("hidden") || acItems.length === 0) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); highlight((acIndex + 1) % acItems.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); highlight((acIndex - 1 + acItems.length) % acItems.length); }
+    else if (e.key === "Enter") {
+      if (acIndex >= 0) { e.preventDefault(); applySuggestion(acItems[acIndex]); }
+    } else if (e.key === "Escape") { hideSuggestions(); }
+  });
+  // mousedown (not click) so it fires before the input's blur hides the list.
+  suggestionsEl.addEventListener("mousedown", function (e) {
+    var li = e.target.closest(".ac-item");
+    if (!li) return;
+    e.preventDefault();
+    applySuggestion(acItems[+li.getAttribute("data-i")]);
+  });
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".autocomplete-wrap")) hideSuggestions();
+  });
 
   // --- CSV export ---
   // Quote every field and double any embedded quotes so commas, quotes and
