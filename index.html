@@ -318,6 +318,12 @@
     border-radius: 4px;
     display: inline-block;
   }
+  .chart-notes {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
 
   .row {
     display: flex;
@@ -391,6 +397,7 @@
   .chart-wrap { overflow-x: auto; }
   .chart-wrap svg { display: block; margin: 0 auto; }
   .bar-value { fill: var(--text); font-family: var(--font-display); font-size: 12.5px; font-weight: 600; text-anchor: middle; font-variant-numeric: tabular-nums; }
+  .bar-meta { fill: var(--muted); font-family: var(--font-body); font-size: 10px; font-weight: 400; text-anchor: middle; font-variant-numeric: tabular-nums; }
   .axis-label { fill: var(--muted); font-size: 11px; text-anchor: middle; }
   .axis-label.today { fill: var(--text); font-weight: 700; }
   .axis-line { stroke: #efe7da; stroke-width: 1; }
@@ -779,6 +786,9 @@
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
   function dateStr(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
   function timeStr(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function fmtNum(n) { return Number(n).toLocaleString("en-US"); } // 1000 -> "1,000"
+  function timeToMin(t) { return (+t.slice(0, 2)) * 60 + (+t.slice(3, 5)); } // "hh:mm" -> minutes
+  function prevDateStr(iso) { var d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() - 1); return dateStr(d); }
   // Friendly, compact date for the table (e.g. "Jun 29"); adds the year only
   // when it isn't the current year. The stored ISO date is unchanged.
   function formatDateShort(iso) {
@@ -1118,8 +1128,27 @@
 
     var todayKey = dateStr(new Date());
 
+    // Meals grouped by date (each sorted into eating order) — used for the
+    // per-bar caption and the fasting-window calculation.
+    var byDate = {};
+    entries.forEach(function (en) { (byDate[en.date] = byDate[en.date] || []).push(en); });
+    Object.keys(byDate).forEach(function (k) {
+      byDate[k].sort(function (a, b) { return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+    });
+    // Fasting window (minutes) before this day's first meal: counts from the
+    // previous calendar day's last meal, across midnight. null if no prior day.
+    function fastWindowMin(date) {
+      var meals = byDate[date], prev = byDate[prevDateStr(date)];
+      if (!meals || !meals.length || !prev || !prev.length) return null;
+      return (1440 - timeToMin(prev[prev.length - 1].time)) + timeToMin(meals[0].time);
+    }
+    function fmtHours(min) {
+      var h = Math.round(min / 30) / 2; // nearest half-hour
+      return (Number.isInteger(h) ? h : h.toFixed(1)) + "h";
+    }
+
     // Layout
-    var padTop = 28, padBottom = 46, padLeft = 50, padRight = 16;
+    var padTop = 48, padBottom = 46, padLeft = 50, padRight = 16;
     var barSlot = 64;
     var barW = 38;
     var plotH = 210;
@@ -1154,7 +1183,7 @@
     ticks.forEach(function (t) {
       var y = baseY - (maxVal ? (t / maxVal) * plotH : 0);
       svg += '<line class="axis-line" x1="' + padLeft + '" y1="' + y + '" x2="' + (width - padRight) + '" y2="' + y + '" />';
-      svg += '<text class="axis-label" x="' + (padLeft - 10) + '" y="' + (y + 4) + '" style="text-anchor:end">' + Math.round(t) + '</text>';
+      svg += '<text class="axis-label" x="' + (padLeft - 10) + '" y="' + (y + 4) + '" style="text-anchor:end">' + fmtNum(Math.round(t)) + '</text>';
     });
 
     var SEP = 1.6; // white gap between stacked meals
@@ -1194,7 +1223,14 @@
         svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="none" stroke="rgba(54,42,28,.3)" stroke-width="1.5" />';
       }
 
-      svg += '<text class="bar-value" x="' + (x + barW / 2) + '" y="' + (y - 7) + '">' + val + '</text>';
+      // Caption above the bar: bold total, then (past days only) lean LM + FW lines.
+      var cx = x + barW / 2;
+      svg += '<text class="bar-value" x="' + cx + '" y="' + (y - 34) + '">' + fmtNum(val) + '</text>';
+      if (!isToday && meals.length) {
+        svg += '<text class="bar-meta" x="' + cx + '" y="' + (y - 21) + '">LM: ' + meals[meals.length - 1].time + '</text>';
+        var fw = fastWindowMin(d);
+        svg += '<text class="bar-meta" x="' + cx + '" y="' + (y - 9) + '">FW: ' + (fw == null ? "—" : fmtHours(fw)) + '</text>';
+      }
       // X label: show MM-DD to keep compact; today gets emphasized + named.
       var lbl = isToday ? "Today" : d.slice(5);
       svg += '<text class="axis-label' + (isToday ? " today" : "") + '" x="' + (x + barW / 2) + '" y="' + (baseY + 18) + '">' + lbl + '</text>';
@@ -1209,7 +1245,9 @@
     });
     legend += '<span><i style="background:' + SELF_GREY + '"></i>Not rated</span></div>';
 
-    chart.innerHTML = svg + legend;
+    var notes = '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>';
+
+    chart.innerHTML = svg + legend + notes;
   }
 
   function escapeHtml(s) {
