@@ -1140,21 +1140,14 @@
         " L" + (x + w) + "," + (y + h) + " Z";
     }
 
-    // Per-day self-assessment level: calorie-weighted average of rated entries,
-    // rounded to the nearest level; -1 means no rated entries that day (grey).
-    function dayLevel(date) {
-      var wSum = 0, w = 0;
-      entries.forEach(function (en) {
-        if (en.date !== date) return;
-        var idx = SELF_ASSESSMENTS.indexOf(en.selfAssessment);
-        if (idx === -1) return;
-        wSum += idx * en.estimatedCalories;
-        w += en.estimatedCalories;
-      });
-      return w > 0 ? Math.round(wSum / w) : -1;
+    // A meal's self-assessment level (-1 = unrated) and its segment colour.
+    function entryLevel(en) { return SELF_ASSESSMENTS.indexOf(en.selfAssessment); }
+    function segColor(level, isToday) {
+      if (level === -1) return isToday ? SELF_GREY_LIGHT : SELF_GREY;
+      return isToday ? SELF_LIGHT[level] : SELF_COLORS[level];
     }
 
-    var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Bar chart of total calories per day, coloured by self assessment">';
+    var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Bar chart of calories per day, each bar stacked by meal and coloured by self assessment">';
 
     // Y axis gridlines/labels (0, half, max)
     var ticks = [0, maxVal / 2, maxVal];
@@ -1164,20 +1157,43 @@
       svg += '<text class="axis-label" x="' + (padLeft - 10) + '" y="' + (y + 4) + '" style="text-anchor:end">' + Math.round(t) + '</text>';
     });
 
+    var SEP = 1.6; // white gap between stacked meals
+
     dates.forEach(function (d, i) {
       var val = totals[d];
       var h = maxVal ? (val / maxVal) * plotH : 0;
       var x = padLeft + i * barSlot + (barSlot - barW) / 2;
       var y = baseY - h;
       var isToday = d === todayKey;
-      var lvl = dayLevel(d);
-      var fill = lvl === -1
-        ? (isToday ? SELF_GREY_LIGHT : SELF_GREY)
-        : (isToday ? SELF_LIGHT[lvl] : SELF_COLORS[lvl]);
-      // Past bars get a thin outline ("fixed"); today's bar has none.
-      var stroke = isToday ? "" : ' stroke="rgba(54,42,28,.3)" stroke-width="1.5"';
-      var titleExtra = lvl === -1 ? "" : " · " + SELF_ASSESSMENTS[lvl];
-      svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="' + fill + '"' + stroke + '><title>' + d + ": " + val + " cal" + titleExtra + '</title></path>';
+
+      // Meals of this day, in eating order (earliest at the bottom).
+      var meals = entries.filter(function (en) { return en.date === d; })
+        .sort(function (a, b) { return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+
+      // Stack segments from the bottom up; only the topmost gets rounded corners.
+      var cursor = baseY;
+      meals.forEach(function (en, m) {
+        var segH = maxVal ? (en.estimatedCalories / maxVal) * plotH : 0;
+        var segTop = cursor - segH;
+        var isTop = m === meals.length - 1;
+        var lvl = entryLevel(en);
+        var fill = segColor(lvl, isToday);
+        var title = escapeHtml(en.what) + " — " + en.estimatedCalories + " cal · " + (lvl === -1 ? "Not rated" : SELF_ASSESSMENTS[lvl]);
+        if (isTop) {
+          svg += '<path d="' + topRoundedRect(x, segTop, barW, segH, 7) + '" fill="' + fill + '"><title>' + title + '</title></path>';
+        } else {
+          svg += '<rect x="' + x + '" y="' + segTop + '" width="' + barW + '" height="' + segH + '" fill="' + fill + '"><title>' + title + '</title></rect>';
+          // white separator above this segment to keep meals visually distinct
+          svg += '<rect x="' + x + '" y="' + (segTop - SEP / 2) + '" width="' + barW + '" height="' + SEP + '" fill="#ffffff" />';
+        }
+        cursor = segTop;
+      });
+
+      // Past bars get a thin outline tracing the whole bar ("fixed"); today's has none.
+      if (!isToday && h > 0) {
+        svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="none" stroke="rgba(54,42,28,.3)" stroke-width="1.5" />';
+      }
+
       svg += '<text class="bar-value" x="' + (x + barW / 2) + '" y="' + (y - 7) + '">' + val + '</text>';
       // X label: show MM-DD to keep compact; today gets emphasized + named.
       var lbl = isToday ? "Today" : d.slice(5);
