@@ -230,6 +230,95 @@
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
+  /* Self-assessment slider */
+  .slider-field { --self-color: var(--self-grey, #b8b0a4); }
+  .slider-readout {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--self-color);
+    margin-bottom: 8px;
+    transition: color .15s;
+  }
+  #self-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 9px;
+    border-radius: 999px;
+    background: #e7e0d4;          /* JS overrides with a coloured fill */
+    outline: none;
+    cursor: pointer;
+    margin: 2px 0;
+  }
+  #self-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--self-color);
+    border: 3px solid #fff;
+    box-shadow: 0 1px 4px rgba(40, 30, 20, .3), inset 0 2px 3px rgba(255, 255, 255, .35);
+    transition: background .15s;
+  }
+  #self-slider::-moz-range-thumb {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--self-color);
+    border: 3px solid #fff;
+    box-shadow: 0 1px 4px rgba(40, 30, 20, .3);
+  }
+  #self-slider:focus-visible { box-shadow: 0 0 0 3px var(--accent-soft); }
+  .slider-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 7px;
+  }
+  .slider-ticks span {
+    font-size: 12px;
+    color: var(--muted);
+    flex: 1;
+    text-align: center;
+    transition: color .15s, font-weight .15s;
+  }
+  .slider-ticks span:first-child { text-align: left; }
+  .slider-ticks span:last-child { text-align: right; }
+  .slider-ticks span.active { color: var(--self-color); font-weight: 700; }
+  .mini-clear {
+    margin-left: 8px;
+    border: none;
+    background: none;
+    color: var(--accent-d);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    text-transform: none;
+  }
+  .mini-clear:hover { text-decoration: underline; }
+
+  /* Chart legend */
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .chart-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .chart-legend i {
+    width: 12px; height: 12px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
   .row {
     display: flex;
     gap: 16px;
@@ -303,7 +392,7 @@
   .chart-wrap svg { display: block; margin: 0 auto; }
   .bar-value { fill: var(--text); font-family: var(--font-display); font-size: 12.5px; font-weight: 600; text-anchor: middle; font-variant-numeric: tabular-nums; }
   .axis-label { fill: var(--muted); font-size: 11px; text-anchor: middle; }
-  .axis-label.today { fill: var(--coral); font-weight: 700; }
+  .axis-label.today { fill: var(--text); font-weight: 700; }
   .axis-line { stroke: #efe7da; stroke-width: 1; }
 
   /* Table */
@@ -341,6 +430,7 @@
   .tag-green  { background: #e3f3ea; color: #1f8a5b; }
   .tag-red    { background: #fbe7e4; color: #cc3f39; }
   .tag-amber  { background: #fbeed8; color: #b0710a; }
+  .tag-lime   { background: #e8f4dc; color: #4f9a39; }
   .tag-slate  { background: #edeef1; color: #5d6b7a; }
   .tag-orange { background: #fce9d9; color: #bd6510; }
   .tag-teal   { background: #def2f0; color: #1c8a86; }
@@ -455,8 +545,17 @@
       </div>
 
       <div class="field">
-        <label>Self assessment <span class="optional-note">(optional)</span></label>
-        <div class="segmented" id="self-group"></div>
+        <label>Self assessment <span class="optional-note">(optional)</span>
+          <button type="button" id="self-clear" class="mini-clear hidden">Clear</button>
+        </label>
+        <div class="slider-field" id="self-field">
+          <div class="slider-readout" id="self-readout">Not rated</div>
+          <input type="range" id="self-slider" min="0" max="3" step="1" value="0"
+                 aria-label="Self assessment" aria-valuetext="Not rated" />
+          <div class="slider-ticks" id="self-ticks">
+            <span>Nasty</span><span>Okay</span><span>Healthy-ish</span><span>Healthy</span>
+          </div>
+        </div>
       </div>
 
       <div class="field">
@@ -520,7 +619,12 @@
 
   var STORAGE_KEY = "calorie-entries";
   var CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Beverage", "Snack"];
-  var SELF_ASSESSMENTS = ["Nasty", "Healthy", "Healthy but high calorie", "Misc"];
+  // Self assessment is an ordinal scale (index 0..3 = ascending healthiness).
+  var SELF_ASSESSMENTS = ["Nasty", "Okay", "Healthy-ish", "Healthy"];
+  var SELF_COLORS = ["#d8473f", "#e3a81f", "#74c062", "#2f9e6e"]; // base (slider + past bars)
+  var SELF_LIGHT = ["#ec8a82", "#f0d486", "#a3d997", "#66c39e"];  // lighter tone (today's bar)
+  var SELF_GREY = "#b8b0a4";        // unrated (past)
+  var SELF_GREY_LIGHT = "#d4ccbf";  // unrated (today)
   var PREP_MODES = ["Home cooked", "Fridge scraps", "Delivery", "Restaurant", "Meal Prep", "Pick-up", "Office", "Other"];
 
   // --- State ---
@@ -531,8 +635,12 @@
   var form = document.getElementById("entry-form");
   var whatEl = document.getElementById("what");
   var categoryGroup = document.getElementById("category-group");
-  var selfGroup = document.getElementById("self-group");
   var prepGroup = document.getElementById("prep-group");
+  var selfField = document.getElementById("self-field");
+  var selfSlider = document.getElementById("self-slider");
+  var selfReadout = document.getElementById("self-readout");
+  var selfClearBtn = document.getElementById("self-clear");
+  var selfTicks = document.getElementById("self-ticks");
   var dateEl = document.getElementById("date");
   var timeEl = document.getElementById("time");
   var caloriesEl = document.getElementById("calories");
@@ -582,8 +690,51 @@
   }
 
   buildSegmented(categoryGroup, "category", CATEGORIES, false);
-  buildSegmented(selfGroup, "selfAssessment", SELF_ASSESSMENTS, true);
   buildSegmented(prepGroup, "prepMode", PREP_MODES, true);
+
+  // --- Self-assessment slider ---
+  // Optional: starts "unrated" (grey) and only commits to a value once touched.
+  var selfRated = false;
+
+  function getSelfAssessment() {
+    return selfRated ? SELF_ASSESSMENTS[+selfSlider.value] : "";
+  }
+  function setSelfAssessment(value) {
+    var idx = SELF_ASSESSMENTS.indexOf(value);
+    if (idx === -1) {
+      selfRated = false;          // unknown or "" → unrated
+    } else {
+      selfRated = true;
+      selfSlider.value = idx;
+    }
+    updateSelfVisuals();
+  }
+  function updateSelfVisuals() {
+    var idx = +selfSlider.value;
+    var color = selfRated ? SELF_COLORS[idx] : SELF_GREY;
+    selfField.style.setProperty("--self-color", color);
+    selfReadout.textContent = selfRated ? SELF_ASSESSMENTS[idx] : "Not rated";
+    selfSlider.setAttribute("aria-valuetext", selfRated ? SELF_ASSESSMENTS[idx] : "Not rated");
+    // Fill the track up to the thumb in the active colour (grey track when unrated).
+    var pct = (idx / 3) * 100;
+    selfSlider.style.background = selfRated
+      ? "linear-gradient(to right, " + color + " 0%, " + color + " " + pct + "%, #e7e0d4 " + pct + "%, #e7e0d4 100%)"
+      : "#e7e0d4";
+    var tickEls = selfTicks.children;
+    for (var i = 0; i < tickEls.length; i++) {
+      tickEls[i].classList.toggle("active", selfRated && i === idx);
+    }
+    selfClearBtn.classList.toggle("hidden", !selfRated);
+  }
+  selfSlider.addEventListener("input", function () {
+    selfRated = true;
+    updateSelfVisuals();
+  });
+  selfClearBtn.addEventListener("click", function () {
+    selfRated = false;
+    selfSlider.value = 0;
+    updateSelfVisuals();
+  });
 
   // --- Persistence ---
   function loadEntries() {
@@ -610,6 +761,9 @@
       en.category = "Snack";
       if (!en.selfAssessment) en.selfAssessment = "Nasty";
     }
+    // Fold the old self-assessment options into the new ordinal scale.
+    if (en.selfAssessment === "Healthy but high calorie") en.selfAssessment = "Healthy-ish";
+    else if (en.selfAssessment === "Misc") en.selfAssessment = "";
     return en;
   }
   function saveEntries() {
@@ -656,7 +810,7 @@
     whatEl.value = "";
     caloriesEl.value = "";
     setSelected(categoryGroup, "");
-    setSelected(selfGroup, "");
+    setSelfAssessment("");
     setSelected(prepGroup, "");
     dateEl.value = dateStr(now);
     timeEl.value = timeStr(now);
@@ -671,7 +825,7 @@
     editingId = entry.id;
     whatEl.value = entry.what;
     setSelected(categoryGroup, entry.category);
-    setSelected(selfGroup, entry.selfAssessment || "");
+    setSelfAssessment(entry.selfAssessment || "");
     setSelected(prepGroup, entry.prepMode || "");
     dateEl.value = entry.date;
     timeEl.value = entry.time;
@@ -694,7 +848,7 @@
     if (CATEGORIES.indexOf(category) === -1) return { ok: false, message: "Please choose a category." };
 
     // Self assessment and prep mode are optional.
-    var selfAssessment = getSelected(selfGroup);
+    var selfAssessment = getSelfAssessment();
     var prepMode = getSelected(prepGroup);
 
     var date = dateEl.value;
@@ -844,7 +998,7 @@
   function applySuggestion(rec) {
     whatEl.value = rec.what;
     setSelected(categoryGroup, rec.category);
-    setSelected(selfGroup, rec.selfAssessment || "");
+    setSelfAssessment(rec.selfAssessment || "");
     setSelected(prepGroup, rec.prepMode || "");
     caloriesEl.value = rec.estimatedCalories;
     timeEl.value = rec.time;
@@ -986,15 +1140,21 @@
         " L" + (x + w) + "," + (y + h) + " Z";
     }
 
-    var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Bar chart of total calories per day">';
-    svg += '<defs>' +
-      '<linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">' +
-        '<stop offset="0" stop-color="#43b582" /><stop offset="1" stop-color="#2f9e6e" />' +
-      '</linearGradient>' +
-      '<linearGradient id="todayGrad" x1="0" y1="0" x2="0" y2="1">' +
-        '<stop offset="0" stop-color="#f88b74" /><stop offset="1" stop-color="#f2674f" />' +
-      '</linearGradient>' +
-      '</defs>';
+    // Per-day self-assessment level: calorie-weighted average of rated entries,
+    // rounded to the nearest level; -1 means no rated entries that day (grey).
+    function dayLevel(date) {
+      var wSum = 0, w = 0;
+      entries.forEach(function (en) {
+        if (en.date !== date) return;
+        var idx = SELF_ASSESSMENTS.indexOf(en.selfAssessment);
+        if (idx === -1) return;
+        wSum += idx * en.estimatedCalories;
+        w += en.estimatedCalories;
+      });
+      return w > 0 ? Math.round(wSum / w) : -1;
+    }
+
+    var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Bar chart of total calories per day, coloured by self assessment">';
 
     // Y axis gridlines/labels (0, half, max)
     var ticks = [0, maxVal / 2, maxVal];
@@ -1010,8 +1170,14 @@
       var x = padLeft + i * barSlot + (barSlot - barW) / 2;
       var y = baseY - h;
       var isToday = d === todayKey;
-      var fill = isToday ? "url(#todayGrad)" : "url(#barGrad)";
-      svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="' + fill + '"><title>' + d + ": " + val + " cal</title></path>";
+      var lvl = dayLevel(d);
+      var fill = lvl === -1
+        ? (isToday ? SELF_GREY_LIGHT : SELF_GREY)
+        : (isToday ? SELF_LIGHT[lvl] : SELF_COLORS[lvl]);
+      // Past bars get a thin outline ("fixed"); today's bar has none.
+      var stroke = isToday ? "" : ' stroke="rgba(54,42,28,.3)" stroke-width="1.5"';
+      var titleExtra = lvl === -1 ? "" : " · " + SELF_ASSESSMENTS[lvl];
+      svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="' + fill + '"' + stroke + '><title>' + d + ": " + val + " cal" + titleExtra + '</title></path>';
       svg += '<text class="bar-value" x="' + (x + barW / 2) + '" y="' + (y - 7) + '">' + val + '</text>';
       // X label: show MM-DD to keep compact; today gets emphasized + named.
       var lbl = isToday ? "Today" : d.slice(5);
@@ -1019,7 +1185,15 @@
     });
 
     svg += '</svg>';
-    chart.innerHTML = svg;
+
+    // Colour legend so the bars are legible.
+    var legend = '<div class="chart-legend">';
+    SELF_ASSESSMENTS.forEach(function (name, i) {
+      legend += '<span><i style="background:' + SELF_COLORS[i] + '"></i>' + name + '</span>';
+    });
+    legend += '<span><i style="background:' + SELF_GREY + '"></i>Not rated</span></div>';
+
+    chart.innerHTML = svg + legend;
   }
 
   function escapeHtml(s) {
@@ -1030,7 +1204,7 @@
 
   // Semantic chip colors so the table reads at a glance.
   var CATEGORY_TAG = { Breakfast: "tag-orange", Lunch: "tag-green", Dinner: "tag-purple", Beverage: "tag-teal", Snack: "tag-blue" };
-  var SELF_TAG = { "Nasty": "tag-red", "Healthy": "tag-green", "Healthy but high calorie": "tag-amber", "Misc": "tag-slate" };
+  var SELF_TAG = { "Nasty": "tag-red", "Okay": "tag-amber", "Healthy-ish": "tag-lime", "Healthy": "tag-green" };
 
   function chip(value, cls) {
     return '<span class="tag ' + (cls || "") + '">' + escapeHtml(value) + "</span>";
