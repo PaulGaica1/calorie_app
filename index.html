@@ -325,6 +325,82 @@
     line-height: 1.5;
   }
 
+  /* Chart header: view toggle + day picker */
+  .chart-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .chart-toggle {
+    display: inline-flex;
+    background: var(--bg-2);
+    border-radius: 11px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .chart-toggle button {
+    border: none;
+    background: none;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--muted);
+    padding: 7px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background .14s, color .14s;
+  }
+  .chart-toggle button.active { background: #fff; color: var(--accent-d); box-shadow: var(--shadow-sm); }
+
+  .daypicker { position: relative; }
+  #day-btn { padding: 8px 14px; font-size: 14px; }
+  #day-btn::after { content: " ▾"; color: var(--muted); }
+  .day-pop {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 40;
+    width: 264px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 12px;
+  }
+  .dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .dp-title { font-family: var(--font-display); font-weight: 600; font-size: 14px; }
+  .dp-nav { border: none; background: none; cursor: pointer; font-size: 18px; line-height: 1; color: var(--muted); padding: 4px 9px; border-radius: 8px; }
+  .dp-nav:hover { background: var(--accent-soft); color: var(--accent-d); }
+  .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .dp-wd { text-align: center; font-size: 10.5px; color: var(--muted); font-weight: 700; padding: 2px 0; }
+  .dp-day {
+    position: relative;
+    text-align: center;
+    font-size: 13px;
+    padding: 7px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    font-variant-numeric: tabular-nums;
+  }
+  .dp-day:hover { background: var(--accent-soft); }
+  .dp-day.empty { visibility: hidden; cursor: default; }
+  .dp-day.logged::after {
+    content: "";
+    position: absolute;
+    bottom: 3px; left: 50%;
+    transform: translateX(-50%);
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .dp-day.today { border-color: var(--accent); }
+  .dp-day.selected { background: var(--accent); color: #fff; }
+  .dp-day.selected.logged::after { background: #fff; }
+
   .row {
     display: flex;
     gap: 16px;
@@ -604,9 +680,18 @@
     </form>
   </section>
 
-  <!-- 2. Calories-per-day chart -->
+  <!-- 2. Charts (toggle between views) -->
   <section class="card">
-    <h2>Calories per day</h2>
+    <div class="chart-head">
+      <div class="chart-toggle" id="chart-toggle">
+        <button type="button" data-chart="day" class="active">Per day</button>
+        <button type="button" data-chart="hour">Time of day</button>
+      </div>
+      <div class="daypicker hidden" id="daypicker">
+        <button type="button" class="btn btn-ghost" id="day-btn">Today</button>
+        <div class="day-pop hidden" id="day-pop"></div>
+      </div>
+    </div>
     <div class="chart-wrap" id="chart"></div>
   </section>
 
@@ -657,6 +742,15 @@
   var editingBanner = document.getElementById("editing-banner");
   var exportBtn = document.getElementById("export-btn");
   var suggestionsEl = document.getElementById("what-suggestions");
+  var chartToggle = document.getElementById("chart-toggle");
+  var daypicker = document.getElementById("daypicker");
+  var dayBtn = document.getElementById("day-btn");
+  var dayPop = document.getElementById("day-pop");
+
+  // --- Chart view state ---
+  var activeChart = "day";   // "day" | "hour"
+  var selectedDay = null;    // ISO date for the time-of-day chart
+  var pickerMonth = null;    // { y, m } currently shown in the calendar popover
 
   // --- Build segmented controls ---
   // optional=true lets the user clear the choice by tapping the selected option
@@ -1108,147 +1202,239 @@
     todayValueEl.innerHTML = total + "<span>cal</span>";
   }
 
-  function renderChart() {
-    var chart = document.getElementById("chart");
-
-    // Group by date, sum calories.
-    var totals = {};
-    entries.forEach(function (en) {
-      totals[en.date] = (totals[en.date] || 0) + en.estimatedCalories;
+  // --- Chart helpers (shared by both chart views) ---
+  function byTimeAsc(a, b) { return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; }
+  function entryLevel(en) { return SELF_ASSESSMENTS.indexOf(en.selfAssessment); }
+  function segColor(level, isToday) {
+    if (level === -1) return isToday ? SELF_GREY_LIGHT : SELF_GREY;
+    return isToday ? SELF_LIGHT[level] : SELF_COLORS[level];
+  }
+  function fmtHours(min) {
+    var h = Math.round(min / 30) / 2; // nearest half-hour
+    return (Number.isInteger(h) ? h : h.toFixed(1)) + "h";
+  }
+  // Path for a bar with only its top two corners rounded.
+  function topRoundedRect(x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, h, w / 2));
+    return "M" + x + "," + (y + h) +
+      " L" + x + "," + (y + r) +
+      " Q" + x + "," + y + " " + (x + r) + "," + y +
+      " L" + (x + w - r) + "," + y +
+      " Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) +
+      " L" + (x + w) + "," + (y + h) + " Z";
+  }
+  function colorLegend() {
+    var legend = '<div class="chart-legend">';
+    SELF_ASSESSMENTS.forEach(function (name, i) {
+      legend += '<span><i style="background:' + SELF_COLORS[i] + '"></i>' + name + '</span>';
     });
-    var dates = Object.keys(totals).sort(); // ISO dates sort chronologically
+    return legend + '<span><i style="background:' + SELF_GREY + '"></i>Not rated</span></div>';
+  }
 
-    if (dates.length === 0) {
-      chart.innerHTML = '<div class="empty">No entries yet — add one above to see your daily totals.</div>';
-      return;
-    }
-
-    var maxVal = 0;
-    dates.forEach(function (d) { if (totals[d] > maxVal) maxVal = totals[d]; });
-
-    var todayKey = dateStr(new Date());
-
-    // Meals grouped by date (each sorted into eating order) — used for the
-    // per-bar caption and the fasting-window calculation.
-    var byDate = {};
-    entries.forEach(function (en) { (byDate[en.date] = byDate[en.date] || []).push(en); });
-    Object.keys(byDate).forEach(function (k) {
-      byDate[k].sort(function (a, b) { return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+  // Generic stacked-bar renderer used by every chart view.
+  // cols: [{ meals:[sorted entries], total, xlabel, today:bool, todayLabel:bool, sub:[strings] }]
+  // opts: { barSlot, barW, ariaLabel, legend, notes }
+  function drawStacked(chartEl, cols, opts) {
+    var barSlot = opts.barSlot || 64, barW = opts.barW || 38, plotH = 210;
+    var maxVal = 0, maxSub = 0;
+    cols.forEach(function (c) {
+      if (c.total > maxVal) maxVal = c.total;
+      if (c.sub && c.sub.length > maxSub) maxSub = c.sub.length;
     });
-    // Fasting window (minutes) before this day's first meal: counts from the
-    // previous calendar day's last meal, across midnight. null if no prior day.
-    function fastWindowMin(date) {
-      var meals = byDate[date], prev = byDate[prevDateStr(date)];
-      if (!meals || !meals.length || !prev || !prev.length) return null;
-      return (1440 - timeToMin(prev[prev.length - 1].time)) + timeToMin(meals[0].time);
-    }
-    function fmtHours(min) {
-      var h = Math.round(min / 30) / 2; // nearest half-hour
-      return (Number.isInteger(h) ? h : h.toFixed(1)) + "h";
-    }
-
-    // Layout
-    var padTop = 48, padBottom = 46, padLeft = 50, padRight = 16;
-    var barSlot = 64;
-    var barW = 38;
-    var plotH = 210;
-    var width = padLeft + padRight + dates.length * barSlot;
-    var minWidth = 320;
-    if (width < minWidth) width = minWidth;
+    var totalGap = 8 + maxSub * 13;        // bar top → bold total
+    var padTop = totalGap + 14, padBottom = 46, padLeft = 50, padRight = 16;
+    var width = Math.max(320, padLeft + padRight + cols.length * barSlot);
     var height = padTop + plotH + padBottom;
     var baseY = padTop + plotH;
+    var SEP = 1.6; // white gap between stacked meals
 
-    // Path for a bar with only its top two corners rounded.
-    function topRoundedRect(x, y, w, h, r) {
-      r = Math.max(0, Math.min(r, h, w / 2));
-      return "M" + x + "," + (y + h) +
-        " L" + x + "," + (y + r) +
-        " Q" + x + "," + y + " " + (x + r) + "," + y +
-        " L" + (x + w - r) + "," + y +
-        " Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) +
-        " L" + (x + w) + "," + (y + h) + " Z";
-    }
+    var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="' + (opts.ariaLabel || "") + '">';
 
-    // A meal's self-assessment level (-1 = unrated) and its segment colour.
-    function entryLevel(en) { return SELF_ASSESSMENTS.indexOf(en.selfAssessment); }
-    function segColor(level, isToday) {
-      if (level === -1) return isToday ? SELF_GREY_LIGHT : SELF_GREY;
-      return isToday ? SELF_LIGHT[level] : SELF_COLORS[level];
-    }
-
-    var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Bar chart of calories per day, each bar stacked by meal and coloured by self assessment">';
-
-    // Y axis gridlines/labels (0, half, max)
-    var ticks = [0, maxVal / 2, maxVal];
-    ticks.forEach(function (t) {
+    [0, maxVal / 2, maxVal].forEach(function (t) {
       var y = baseY - (maxVal ? (t / maxVal) * plotH : 0);
       svg += '<line class="axis-line" x1="' + padLeft + '" y1="' + y + '" x2="' + (width - padRight) + '" y2="' + y + '" />';
       svg += '<text class="axis-label" x="' + (padLeft - 10) + '" y="' + (y + 4) + '" style="text-anchor:end">' + fmtNum(Math.round(t)) + '</text>';
     });
 
-    var SEP = 1.6; // white gap between stacked meals
-
-    dates.forEach(function (d, i) {
-      var val = totals[d];
+    cols.forEach(function (c, i) {
+      var val = c.total;
       var h = maxVal ? (val / maxVal) * plotH : 0;
       var x = padLeft + i * barSlot + (barSlot - barW) / 2;
       var y = baseY - h;
-      var isToday = d === todayKey;
-
-      // Meals of this day, in eating order (earliest at the bottom).
-      var meals = entries.filter(function (en) { return en.date === d; })
-        .sort(function (a, b) { return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; });
+      var cx = x + barW / 2;
+      var meals = c.meals || [];
 
       // Stack segments from the bottom up; only the topmost gets rounded corners.
       var cursor = baseY;
       meals.forEach(function (en, m) {
         var segH = maxVal ? (en.estimatedCalories / maxVal) * plotH : 0;
         var segTop = cursor - segH;
-        var isTop = m === meals.length - 1;
         var lvl = entryLevel(en);
-        var fill = segColor(lvl, isToday);
+        var fill = segColor(lvl, c.today);
         var title = escapeHtml(en.what) + " — " + en.estimatedCalories + " cal · " + (lvl === -1 ? "Not rated" : SELF_ASSESSMENTS[lvl]);
-        if (isTop) {
+        if (m === meals.length - 1) {
           svg += '<path d="' + topRoundedRect(x, segTop, barW, segH, 7) + '" fill="' + fill + '"><title>' + title + '</title></path>';
         } else {
           svg += '<rect x="' + x + '" y="' + segTop + '" width="' + barW + '" height="' + segH + '" fill="' + fill + '"><title>' + title + '</title></rect>';
-          // white separator above this segment to keep meals visually distinct
           svg += '<rect x="' + x + '" y="' + (segTop - SEP / 2) + '" width="' + barW + '" height="' + SEP + '" fill="#ffffff" />';
         }
         cursor = segTop;
       });
 
-      // Past bars get a thin outline tracing the whole bar ("fixed"); today's has none.
-      if (!isToday && h > 0) {
+      // Past bars get a thin outline ("fixed"); today's has none.
+      if (!c.today && h > 0) {
         svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="none" stroke="rgba(54,42,28,.3)" stroke-width="1.5" />';
       }
 
-      // Caption above the bar: bold total, then (past days only) lean LM + FW lines.
-      var cx = x + barW / 2;
-      svg += '<text class="bar-value" x="' + cx + '" y="' + (y - 34) + '">' + fmtNum(val) + '</text>';
-      if (!isToday && meals.length) {
-        svg += '<text class="bar-meta" x="' + cx + '" y="' + (y - 21) + '">LM: ' + meals[meals.length - 1].time + '</text>';
-        var fw = fastWindowMin(d);
-        svg += '<text class="bar-meta" x="' + cx + '" y="' + (y - 9) + '">FW: ' + (fw == null ? "—" : fmtHours(fw)) + '</text>';
+      // Caption: bold total on top, optional lean sub-lines beneath.
+      if (val > 0 || meals.length) {
+        svg += '<text class="bar-value" x="' + cx + '" y="' + (y - totalGap) + '">' + fmtNum(val) + '</text>';
       }
-      // X label: show MM-DD to keep compact; today gets emphasized + named.
-      var lbl = isToday ? "Today" : d.slice(5);
-      svg += '<text class="axis-label' + (isToday ? " today" : "") + '" x="' + (x + barW / 2) + '" y="' + (baseY + 18) + '">' + lbl + '</text>';
+      (c.sub || []).forEach(function (s, k) {
+        svg += '<text class="bar-meta" x="' + cx + '" y="' + (y - (totalGap - 13 * (k + 1))) + '">' + s + '</text>';
+      });
+      svg += '<text class="axis-label' + (c.todayLabel ? " today" : "") + '" x="' + cx + '" y="' + (baseY + 18) + '">' + c.xlabel + '</text>';
     });
 
     svg += '</svg>';
-
-    // Colour legend so the bars are legible.
-    var legend = '<div class="chart-legend">';
-    SELF_ASSESSMENTS.forEach(function (name, i) {
-      legend += '<span><i style="background:' + SELF_COLORS[i] + '"></i>' + name + '</span>';
-    });
-    legend += '<span><i style="background:' + SELF_GREY + '"></i>Not rated</span></div>';
-
-    var notes = '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>';
-
-    chart.innerHTML = svg + legend + notes;
+    chartEl.innerHTML = svg + (opts.legend || "") + (opts.notes || "");
   }
+
+  // Chart 1: calories per day (stacked by meal), with LM/FW captions.
+  function renderDayChart() {
+    var chart = document.getElementById("chart");
+    var byDate = {};
+    entries.forEach(function (en) { (byDate[en.date] = byDate[en.date] || []).push(en); });
+    var dates = Object.keys(byDate).sort();
+    if (!dates.length) {
+      chart.innerHTML = '<div class="empty">No entries yet — add one above to see your daily totals.</div>';
+      return;
+    }
+    Object.keys(byDate).forEach(function (k) { byDate[k].sort(byTimeAsc); });
+    var todayKey = dateStr(new Date());
+    function fastWindowMin(date) {
+      var meals = byDate[date], prev = byDate[prevDateStr(date)];
+      if (!meals || !meals.length || !prev || !prev.length) return null;
+      return (1440 - timeToMin(prev[prev.length - 1].time)) + timeToMin(meals[0].time);
+    }
+    var cols = dates.map(function (d) {
+      var meals = byDate[d];
+      var isToday = d === todayKey;
+      var sub = [];
+      if (!isToday) {
+        sub.push("LM: " + meals[meals.length - 1].time);
+        var fw = fastWindowMin(d);
+        sub.push("FW: " + (fw == null ? "—" : fmtHours(fw)));
+      }
+      var total = meals.reduce(function (s, en) { return s + en.estimatedCalories; }, 0);
+      return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub };
+    });
+    var notes = '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>';
+    drawStacked(chart, cols, { barSlot: 64, barW: 38, ariaLabel: "Bar chart of calories per day, stacked by meal and coloured by self assessment", legend: colorLegend(), notes: notes });
+  }
+
+  // Chart 2: calories by time of day for one selected day.
+  function renderHourChart(date) {
+    var chart = document.getElementById("chart");
+    var meals = entries.filter(function (en) { return en.date === date; }).sort(byTimeAsc);
+    if (!meals.length) {
+      chart.innerHTML = '<div class="empty">No meals logged on ' + escapeHtml(formatDateShort(date)) + '.</div>' + colorLegend();
+      return;
+    }
+    var isToday = date === dateStr(new Date());
+    var byHour = {};
+    meals.forEach(function (en) { var hr = +en.time.slice(0, 2); (byHour[hr] = byHour[hr] || []).push(en); });
+    var hourNums = Object.keys(byHour).map(Number);
+    var minH = Math.min.apply(null, hourNums), maxH = Math.max.apply(null, hourNums);
+    var cols = [];
+    for (var hr = minH; hr <= maxH; hr++) {
+      var hm = byHour[hr] || [];
+      var total = hm.reduce(function (s, en) { return s + en.estimatedCalories; }, 0);
+      cols.push({ meals: hm, total: total, xlabel: pad(hr), today: isToday, todayLabel: false, sub: [] });
+    }
+    drawStacked(chart, cols, { barSlot: 46, barW: 28, ariaLabel: "Bar chart of calories by hour for " + date + ", stacked by meal", legend: colorLegend() });
+  }
+
+  function renderChart() {
+    if (selectedDay) { updateDayBtn(); if (!dayPop.classList.contains("hidden")) renderCalendar(); }
+    if (activeChart === "hour") renderHourChart(selectedDay);
+    else renderDayChart();
+  }
+
+  // --- Chart view toggle + custom day-picker calendar ---
+  function defaultDay() {
+    var t = dateStr(new Date()), has = {};
+    entries.forEach(function (en) { has[en.date] = true; });
+    if (has[t]) return t;
+    var keys = Object.keys(has).sort();
+    return keys.length ? keys[keys.length - 1] : t;
+  }
+  function updateDayBtn() {
+    dayBtn.textContent = (selectedDay === dateStr(new Date())) ? "Today" : formatDateShort(selectedDay);
+  }
+  function renderCalendar() {
+    var y = pickerMonth.y, m = pickerMonth.m;
+    var startDow = new Date(y, m, 1).getDay();
+    var daysInMonth = new Date(y, m + 1, 0).getDate();
+    var logged = {}; entries.forEach(function (en) { logged[en.date] = true; });
+    var today = dateStr(new Date());
+    var html = '<div class="dp-head">' +
+      '<button type="button" class="dp-nav" data-d="-1" aria-label="Previous month">‹</button>' +
+      '<span class="dp-title">' + MONTHS[m] + ' ' + y + '</span>' +
+      '<button type="button" class="dp-nav" data-d="1" aria-label="Next month">›</button></div>' +
+      '<div class="dp-grid">';
+    ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].forEach(function (w) { html += '<div class="dp-wd">' + w + '</div>'; });
+    for (var i = 0; i < startDow; i++) html += '<div class="dp-day empty"></div>';
+    for (var d = 1; d <= daysInMonth; d++) {
+      var iso = y + "-" + pad(m + 1) + "-" + pad(d);
+      var cls = "dp-day";
+      if (logged[iso]) cls += " logged";
+      if (iso === today) cls += " today";
+      if (iso === selectedDay) cls += " selected";
+      html += '<div class="' + cls + '" data-date="' + iso + '">' + d + '</div>';
+    }
+    dayPop.innerHTML = html + '</div>';
+  }
+  function openPicker() {
+    var p = selectedDay.split("-");
+    pickerMonth = { y: +p[0], m: +p[1] - 1 };
+    renderCalendar();
+    dayPop.classList.remove("hidden");
+  }
+  function closePicker() { dayPop.classList.add("hidden"); }
+
+  dayBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (dayPop.classList.contains("hidden")) openPicker(); else closePicker();
+  });
+  dayPop.addEventListener("click", function (e) {
+    var nav = e.target.closest(".dp-nav");
+    if (nav) {
+      pickerMonth.m += (+nav.getAttribute("data-d"));
+      if (pickerMonth.m < 0) { pickerMonth.m = 11; pickerMonth.y--; }
+      else if (pickerMonth.m > 11) { pickerMonth.m = 0; pickerMonth.y++; }
+      renderCalendar();
+      return;
+    }
+    var day = e.target.closest(".dp-day[data-date]");
+    if (day) {
+      selectedDay = day.getAttribute("data-date");
+      updateDayBtn();
+      closePicker();
+      renderChart();
+    }
+  });
+  document.addEventListener("click", function (e) { if (!e.target.closest("#daypicker")) closePicker(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closePicker(); });
+
+  chartToggle.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-chart]");
+    if (!btn) return;
+    activeChart = btn.getAttribute("data-chart");
+    Array.prototype.forEach.call(chartToggle.children, function (b) { b.classList.toggle("active", b === btn); });
+    daypicker.classList.toggle("hidden", activeChart !== "hour");
+    renderChart();
+  });
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -1321,6 +1507,8 @@
 
   // --- Init ---
   saveEntries(); // persist any one-time migration from loadEntries()
+  selectedDay = defaultDay();
+  updateDayBtn();
   resetForm();
   render();
 })();
