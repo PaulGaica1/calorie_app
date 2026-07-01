@@ -120,7 +120,27 @@
     margin-bottom: 18px;
   }
   .section-head h2 { margin: 0; }
+  .section-head-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+  /* Active table filter (from clicking a chart bar) */
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-d);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .filter-chip::after { content: "✕"; font-size: 11px; opacity: .8; }
+  .filter-chip:hover { background: #d7ecdf; }
+  .chart-wrap svg [data-date] { cursor: pointer; }
 
   .card {
     background: var(--card);
@@ -713,7 +733,10 @@
   <!-- 3. Entries table -->
   <section class="card">
     <div class="section-head">
-      <h2>Entries</h2>
+      <div class="section-head-left">
+        <h2>Entries</h2>
+        <button type="button" class="filter-chip hidden" id="table-filter"></button>
+      </div>
       <button type="button" class="btn btn-ghost" id="export-btn">Export CSV</button>
     </div>
     <div id="table-wrap"></div>
@@ -763,11 +786,14 @@
   var dayPop = document.getElementById("day-pop");
   var dayPrev = document.getElementById("day-prev");
   var dayNext = document.getElementById("day-next");
+  var chartContainer = document.getElementById("chart");
+  var tableFilterEl = document.getElementById("table-filter");
 
   // --- Chart view state ---
   var activeChart = "day";   // "day" | "hour"
   var selectedDay = null;    // ISO date for the time-of-day chart
   var pickerMonth = null;    // { y, m } currently shown in the calendar popover
+  var filterDate = null;     // ISO date the entries table is filtered to (from a bar click)
 
   // --- Build segmented controls ---
   // optional=true lets the user clear the choice by tapping the selected option
@@ -1293,6 +1319,14 @@
     var SEP = 1.6; // white gap between stacked meals
 
     var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="' + (opts.ariaLabel || "") + '">';
+    // Inner "interior shade" (same pressed look as the buttons) for a selected bar.
+    svg += '<defs><filter id="barPress" x="-20%" y="-20%" width="140%" height="140%">' +
+      '<feOffset in="SourceAlpha" dx="0" dy="3" result="o" />' +
+      '<feGaussianBlur in="o" stdDeviation="2.6" result="bl" />' +
+      '<feComposite in="bl" in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="sd" />' +
+      '<feFlood flood-color="#11402b" flood-opacity="0.55" />' +
+      '<feComposite in2="sd" operator="in" />' +
+      '</filter></defs>';
 
     [0, maxVal / 2, maxVal].forEach(function (t) {
       var y = baseY - (maxVal ? (t / maxVal) * plotH : 0);
@@ -1308,6 +1342,10 @@
       var cx = x + barW / 2;
       var meals = c.meals || [];
 
+      // When clickable, tag the bar's shapes + captions with the date so a click
+      // anywhere on the bar (including its number) filters the table.
+      var hit = (opts.clickable && c.key) ? (' data-date="' + c.key + '"') : "";
+
       // Stack segments from the bottom up; only the topmost gets rounded corners.
       var cursor = baseY;
       meals.forEach(function (en, m) {
@@ -1317,27 +1355,33 @@
         var fill = segColor(lvl, c.today);
         var title = escapeHtml(en.what) + " — " + en.estimatedCalories + " cal · " + (lvl === -1 ? "Not rated" : SELF_ASSESSMENTS[lvl]);
         if (m === meals.length - 1) {
-          svg += '<path d="' + topRoundedRect(x, segTop, barW, segH, 7) + '" fill="' + fill + '"><title>' + title + '</title></path>';
+          svg += '<path d="' + topRoundedRect(x, segTop, barW, segH, 7) + '" fill="' + fill + '"' + hit + '><title>' + title + '</title></path>';
         } else {
-          svg += '<rect x="' + x + '" y="' + segTop + '" width="' + barW + '" height="' + segH + '" fill="' + fill + '"><title>' + title + '</title></rect>';
-          svg += '<rect x="' + x + '" y="' + (segTop - SEP / 2) + '" width="' + barW + '" height="' + SEP + '" fill="#ffffff" />';
+          svg += '<rect x="' + x + '" y="' + segTop + '" width="' + barW + '" height="' + segH + '" fill="' + fill + '"' + hit + '><title>' + title + '</title></rect>';
+          svg += '<rect x="' + x + '" y="' + (segTop - SEP / 2) + '" width="' + barW + '" height="' + SEP + '" fill="#ffffff" pointer-events="none" />';
         }
         cursor = segTop;
       });
 
       // Past bars get a thin outline ("fixed"); today's has none.
       if (!c.today && h > 0) {
-        svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="none" stroke="rgba(54,42,28,.3)" stroke-width="1.5" />';
+        svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="none" stroke="rgba(54,42,28,.3)" stroke-width="1.5" pointer-events="none" />';
+      }
+
+      // Selected bar: overlay a pressed-in interior shade (matches the buttons).
+      if (c.selected && h > 0) {
+        svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="#000" filter="url(#barPress)" pointer-events="none" />';
+        svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="none" stroke="' + SELF_COLORS[3] + '" stroke-width="2" pointer-events="none" />';
       }
 
       // Caption: bold total on top, optional lean sub-lines beneath.
       if (val > 0 || meals.length) {
-        svg += '<text class="bar-value" x="' + cx + '" y="' + (y - totalGap) + '">' + fmtNum(val) + '</text>';
+        svg += '<text class="bar-value" x="' + cx + '" y="' + (y - totalGap) + '"' + hit + '>' + fmtNum(val) + '</text>';
       }
       (c.sub || []).forEach(function (s, k) {
-        svg += '<text class="bar-meta" x="' + cx + '" y="' + (y - (totalGap - 13 * (k + 1))) + '">' + s + '</text>';
+        svg += '<text class="bar-meta" x="' + cx + '" y="' + (y - (totalGap - 13 * (k + 1))) + '"' + hit + '>' + s + '</text>';
       });
-      svg += '<text class="axis-label' + (c.todayLabel ? " today" : "") + '" x="' + cx + '" y="' + (baseY + 18) + '">' + c.xlabel + '</text>';
+      svg += '<text class="axis-label' + (c.todayLabel ? " today" : "") + '" x="' + cx + '" y="' + (baseY + 18) + '"' + hit + '>' + c.xlabel + '</text>';
     });
 
     svg += '</svg>';
@@ -1371,10 +1415,10 @@
         sub.push("FW: " + (fw == null ? "—" : fmtHours(fw)));
       }
       var total = meals.reduce(function (s, en) { return s + en.estimatedCalories; }, 0);
-      return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub };
+      return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate };
     });
     var notes = '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>';
-    drawStacked(chart, cols, { barSlot: 64, barW: 38, ariaLabel: "Bar chart of calories per day, stacked by meal and coloured by self assessment", legend: colorLegend(), notes: notes });
+    drawStacked(chart, cols, { barSlot: 64, barW: 38, clickable: true, ariaLabel: "Bar chart of calories per day, stacked by meal and coloured by self assessment. Click a bar to filter the table to that day.", legend: colorLegend(), notes: notes });
   }
 
   // Chart 2: calories by time of day for one selected day.
@@ -1503,6 +1547,22 @@
     renderChart();
   });
 
+  // Click a day bar → filter the table to that day (click again to clear).
+  chartContainer.addEventListener("click", function (e) {
+    if (activeChart !== "day") return;
+    var hit = e.target.closest("[data-date]");
+    if (!hit) return;
+    var d = hit.getAttribute("data-date");
+    filterDate = (filterDate === d) ? null : d;
+    renderChart();   // update the pressed-in bar
+    renderTable();   // apply / clear the filter
+  });
+  tableFilterEl.addEventListener("click", function () {
+    filterDate = null;
+    renderChart();
+    renderTable();
+  });
+
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -1521,14 +1581,29 @@
     return value ? "<td>" + chip(value, cls) + "</td>" : '<td class="muted-cell">—</td>';
   }
 
+  function updateFilterChip() {
+    if (filterDate) {
+      tableFilterEl.textContent = formatDateShort(filterDate);
+      tableFilterEl.classList.remove("hidden");
+    } else {
+      tableFilterEl.classList.add("hidden");
+    }
+  }
+
   function renderTable() {
     var wrap = document.getElementById("table-wrap");
+    updateFilterChip();
     if (entries.length === 0) {
       wrap.innerHTML = '<div class="empty">No entries yet.</div>';
       return;
     }
 
     var sorted = sortedNewestFirst();
+    if (filterDate) sorted = sorted.filter(function (en) { return en.date === filterDate; });
+    if (!sorted.length) {
+      wrap.innerHTML = '<div class="empty">No entries on ' + escapeHtml(formatDateShort(filterDate)) + '.</div>';
+      return;
+    }
 
     var html = '<div class="table-scroll"><table><thead><tr>' +
       '<th>What</th><th>Category</th><th>Self assessment</th><th>Prep mode</th>' +
