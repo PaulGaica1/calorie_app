@@ -355,9 +355,22 @@
   }
   .chart-toggle button.active { background: #fff; color: var(--accent-d); box-shadow: var(--shadow-sm); }
 
-  .daypicker { position: relative; }
-  #day-btn { padding: 8px 14px; font-size: 14px; }
+  .daypicker { position: relative; display: inline-flex; align-items: center; gap: 5px; }
+  #day-btn { padding: 8px 14px; font-size: 14px; min-width: 96px; }
   #day-btn::after { content: " ▾"; color: var(--muted); }
+  .day-nav {
+    border: 1px solid var(--border);
+    background: #fffdfb;
+    color: var(--muted);
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 17px; line-height: 1;
+    box-shadow: var(--shadow-sm);
+    transition: border-color .12s, color .12s, background .12s;
+  }
+  .day-nav:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-d); background: var(--accent-soft); }
+  .day-nav:disabled { opacity: .4; cursor: not-allowed; }
   .day-pop {
     position: absolute;
     right: 0;
@@ -688,7 +701,9 @@
         <button type="button" data-chart="hour">Time of day</button>
       </div>
       <div class="daypicker hidden" id="daypicker">
+        <button type="button" class="day-nav" id="day-prev" aria-label="Previous day">‹</button>
         <button type="button" class="btn btn-ghost" id="day-btn">Today</button>
+        <button type="button" class="day-nav" id="day-next" aria-label="Next day">›</button>
         <div class="day-pop hidden" id="day-pop"></div>
       </div>
     </div>
@@ -746,6 +761,8 @@
   var daypicker = document.getElementById("daypicker");
   var dayBtn = document.getElementById("day-btn");
   var dayPop = document.getElementById("day-pop");
+  var dayPrev = document.getElementById("day-prev");
+  var dayNext = document.getElementById("day-next");
 
   // --- Chart view state ---
   var activeChart = "day";   // "day" | "hour"
@@ -1202,6 +1219,23 @@
     todayValueEl.innerHTML = total + "<span>cal</span>";
   }
 
+  // Parts of the day (by meal hour). "Night" wraps past midnight (21:00–04:59):
+  // hours before 5 are treated as hour+24 so a 2am snack lands in Night.
+  var DAY_PARTS = [
+    { name: "Morning", start: 5, end: 11 },
+    { name: "Midday", start: 11, end: 14 },
+    { name: "Afternoon", start: 14, end: 17 },
+    { name: "Evening", start: 17, end: 21 },
+    { name: "Night", start: 21, end: 29 }
+  ];
+  function partIndexForHour(h) {
+    var hh = h < 5 ? h + 24 : h;
+    for (var i = 0; i < DAY_PARTS.length; i++) {
+      if (hh >= DAY_PARTS[i].start && hh < DAY_PARTS[i].end) return i;
+    }
+    return DAY_PARTS.length - 1;
+  }
+
   // --- Chart helpers (shared by both chart views) ---
   function byTimeAsc(a, b) { return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0; }
   function entryLevel(en) { return SELF_ASSESSMENTS.indexOf(en.selfAssessment); }
@@ -1235,7 +1269,7 @@
   // cols: [{ meals:[sorted entries], total, xlabel, today:bool, todayLabel:bool, sub:[strings] }]
   // opts: { barSlot, barW, ariaLabel, legend, notes }
   function drawStacked(chartEl, cols, opts) {
-    var barSlot = opts.barSlot || 64, barW = opts.barW || 38, plotH = 210;
+    var plotH = 210, barSlot, barW;
     var maxVal = 0, maxSub = 0;
     cols.forEach(function (c) {
       if (c.total > maxVal) maxVal = c.total;
@@ -1243,7 +1277,17 @@
     });
     var totalGap = 8 + maxSub * 13;        // bar top → bold total
     var padTop = totalGap + 14, padBottom = 46, padLeft = 50, padRight = 16;
-    var width = Math.max(320, padLeft + padRight + cols.length * barSlot);
+    var width;
+    if (opts.fitWidth) {
+      // Fill the container exactly (no horizontal scroll); bars share the space.
+      width = Math.max(280, opts.fitWidth);
+      barSlot = (width - padLeft - padRight) / cols.length;
+      barW = Math.min(opts.barW || 38, barSlot * 0.62);
+    } else {
+      barSlot = opts.barSlot || 64;
+      barW = opts.barW || 38;
+      width = Math.max(320, padLeft + padRight + cols.length * barSlot);
+    }
     var height = padTop + plotH + padBottom;
     var baseY = padTop + plotH;
     var SEP = 1.6; // white gap between stacked meals
@@ -1342,17 +1386,26 @@
       return;
     }
     var isToday = date === dateStr(new Date());
-    var byHour = {};
-    meals.forEach(function (en) { var hr = +en.time.slice(0, 2); (byHour[hr] = byHour[hr] || []).push(en); });
-    var hourNums = Object.keys(byHour).map(Number);
-    var minH = Math.min.apply(null, hourNums), maxH = Math.max.apply(null, hourNums);
-    var cols = [];
-    for (var hr = minH; hr <= maxH; hr++) {
-      var hm = byHour[hr] || [];
-      var total = hm.reduce(function (s, en) { return s + en.estimatedCalories; }, 0);
-      cols.push({ meals: hm, total: total, xlabel: pad(hr), today: isToday, todayLabel: false, sub: [] });
-    }
-    drawStacked(chart, cols, { barSlot: 46, barW: 28, ariaLabel: "Bar chart of calories by hour for " + date + ", stacked by meal", legend: colorLegend() });
+    // Bucket meals into the fixed parts of the day (always show all parts).
+    var buckets = DAY_PARTS.map(function () { return []; });
+    meals.forEach(function (en) { buckets[partIndexForHour(+en.time.slice(0, 2))].push(en); });
+    var cols = DAY_PARTS.map(function (part, i) {
+      var bm = buckets[i]; // already in eating order (meals were sorted)
+      return {
+        meals: bm,
+        total: bm.reduce(function (s, en) { return s + en.estimatedCalories; }, 0),
+        xlabel: part.name,
+        today: isToday,
+        todayLabel: false,
+        sub: []
+      };
+    });
+    drawStacked(chart, cols, {
+      fitWidth: chart.clientWidth || 600,
+      barW: 46,
+      ariaLabel: "Bar chart of calories by part of day for " + date + ", stacked by meal",
+      legend: colorLegend()
+    });
   }
 
   function renderChart() {
@@ -1371,6 +1424,18 @@
   }
   function updateDayBtn() {
     dayBtn.textContent = (selectedDay === dateStr(new Date())) ? "Today" : formatDateShort(selectedDay);
+    dayNext.disabled = selectedDay >= dateStr(new Date()); // can't review the future
+  }
+  // Step one calendar day at a time (capped at today going forward).
+  function stepDay(delta) {
+    var d = new Date(selectedDay + "T00:00:00");
+    d.setDate(d.getDate() + delta);
+    var iso = dateStr(d);
+    if (delta > 0 && iso > dateStr(new Date())) return;
+    selectedDay = iso;
+    if (!dayPop.classList.contains("hidden")) pickerMonth = { y: d.getFullYear(), m: d.getMonth() };
+    updateDayBtn();
+    renderChart();
   }
   function renderCalendar() {
     var y = pickerMonth.y, m = pickerMonth.m;
@@ -1407,6 +1472,8 @@
     e.stopPropagation();
     if (dayPop.classList.contains("hidden")) openPicker(); else closePicker();
   });
+  dayPrev.addEventListener("click", function () { stepDay(-1); });
+  dayNext.addEventListener("click", function () { stepDay(1); });
   dayPop.addEventListener("click", function (e) {
     var nav = e.target.closest(".dp-nav");
     if (nav) {
