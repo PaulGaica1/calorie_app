@@ -507,6 +507,7 @@
   .chart-wrap svg { display: block; margin: 0 auto; }
   .bar-value { fill: var(--text); font-family: var(--font-display); font-size: 12.5px; font-weight: 600; text-anchor: middle; font-variant-numeric: tabular-nums; }
   .bar-meta { fill: var(--muted); font-family: var(--font-body); font-size: 10px; font-weight: 400; text-anchor: middle; font-variant-numeric: tabular-nums; }
+  .avg-label { fill: #9a9186; font-family: var(--font-body); font-size: 10.5px; font-weight: 600; text-anchor: end; font-variant-numeric: tabular-nums; }
   .axis-label { fill: var(--muted); font-size: 11px; text-anchor: middle; }
   .axis-label.today { fill: var(--text); font-weight: 700; }
   .axis-line { stroke: #efe7da; stroke-width: 1; }
@@ -1283,6 +1284,16 @@
       " Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) +
       " L" + (x + w) + "," + (y + h) + " Z";
   }
+  // Average calories per day over the most recent (up to) 10 logged days.
+  function avgDailyCalories() {
+    var byDate = {};
+    entries.forEach(function (en) { byDate[en.date] = (byDate[en.date] || 0) + en.estimatedCalories; });
+    var last = Object.keys(byDate).sort().slice(-10); // 10 most recent logged days
+    if (!last.length) return null;
+    var sum = last.reduce(function (s, d) { return s + byDate[d]; }, 0);
+    return sum / last.length;
+  }
+
   function colorLegend() {
     var legend = '<div class="chart-legend">';
     SELF_ASSESSMENTS.forEach(function (name, i) {
@@ -1301,6 +1312,7 @@
       if (c.total > maxVal) maxVal = c.total;
       if (c.sub && c.sub.length > maxSub) maxSub = c.sub.length;
     });
+    if (opts.avgLine) maxVal = Math.max(maxVal, opts.avgLine * 1.06); // keep the line in view
     var totalGap = 8 + maxSub * 13;        // bar top → bold total
     var padTop = totalGap + 14, padBottom = 46, padLeft = 50, padRight = 16;
     var width;
@@ -1384,6 +1396,13 @@
       svg += '<text class="axis-label' + (c.todayLabel ? " today" : "") + '" x="' + cx + '" y="' + (baseY + 18) + '"' + hit + '>' + c.xlabel + '</text>';
     });
 
+    // Dotted grey line at the average daily calories (last ≤10 logged days).
+    if (opts.avgLine && maxVal) {
+      var ay = baseY - (opts.avgLine / maxVal) * plotH;
+      svg += '<line x1="' + padLeft + '" y1="' + ay + '" x2="' + (width - padRight) + '" y2="' + ay + '" stroke="#9a9186" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" pointer-events="none" />';
+      svg += '<text class="avg-label" x="' + (width - padRight) + '" y="' + (ay - 5) + '" pointer-events="none">avg ' + fmtNum(Math.round(opts.avgLine)) + '</text>';
+    }
+
     svg += '</svg>';
     chartEl.innerHTML = svg + (opts.legend || "") + (opts.notes || "");
   }
@@ -1418,7 +1437,7 @@
       return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate };
     });
     var notes = '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>';
-    drawStacked(chart, cols, { barSlot: 64, barW: 38, clickable: true, ariaLabel: "Bar chart of calories per day, stacked by meal and coloured by self assessment. Click a bar to filter the table to that day.", legend: colorLegend(), notes: notes });
+    drawStacked(chart, cols, { barSlot: 64, barW: 38, clickable: true, avgLine: avgDailyCalories(), ariaLabel: "Bar chart of calories per day, stacked by meal and coloured by self assessment. Click a bar to filter the table to that day.", legend: colorLegend(), notes: notes });
   }
 
   // Chart 2: calories by time of day for one selected day.
@@ -1447,6 +1466,7 @@
     drawStacked(chart, cols, {
       fitWidth: chart.clientWidth || 600,
       barW: 46,
+      avgLine: avgDailyCalories(),
       ariaLabel: "Bar chart of calories by part of day for " + date + ", stacked by meal",
       legend: colorLegend()
     });
