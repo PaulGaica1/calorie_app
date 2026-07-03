@@ -142,6 +142,51 @@
   .filter-chip:hover { background: #d7ecdf; }
   .chart-wrap svg [data-date] { cursor: pointer; }
 
+  /* Table pager (bottom left) */
+  .table-pager {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .pager-btn {
+    border: 1px solid var(--border);
+    background: #fffdfb;
+    color: var(--muted);
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    cursor: pointer;
+    font-size: 16px; line-height: 1;
+    box-shadow: var(--shadow-sm);
+  }
+  .pager-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-d); background: var(--accent-soft); }
+  .pager-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .pager-info { font-variant-numeric: tabular-nums; }
+
+  /* Export date-range popover */
+  .export-wrap { position: relative; }
+  .export-pop {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 40;
+    width: 240px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 14px;
+    text-align: left;
+  }
+  .export-title { font-family: var(--font-display); font-weight: 600; font-size: 14px; margin-bottom: 10px; }
+  .export-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+  .export-field input { width: 150px; padding: 7px 9px; }
+  .export-hint { font-size: 11.5px; color: var(--muted); margin: 4px 0 12px; }
+  .export-note { font-size: 12px; color: var(--danger); margin: -6px 0 10px; }
+  #export-go { width: 100%; }
+
   .card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -738,7 +783,17 @@
         <h2>Entries</h2>
         <button type="button" class="filter-chip hidden" id="table-filter"></button>
       </div>
-      <button type="button" class="btn btn-ghost" id="export-btn">Export CSV</button>
+      <div class="export-wrap">
+        <button type="button" class="btn btn-ghost" id="export-btn">Export CSV</button>
+        <div class="export-pop hidden" id="export-pop">
+          <div class="export-title">Export entries</div>
+          <label class="export-field">From <input type="date" id="export-from" /></label>
+          <label class="export-field">To <input type="date" id="export-to" /></label>
+          <div class="export-hint">Leave blank to export everything.</div>
+          <div class="export-note hidden" id="export-note">No entries in that range.</div>
+          <button type="button" class="btn btn-primary" id="export-go">Download CSV</button>
+        </div>
+      </div>
     </div>
     <div id="table-wrap"></div>
   </section>
@@ -789,12 +844,21 @@
   var dayNext = document.getElementById("day-next");
   var chartContainer = document.getElementById("chart");
   var tableFilterEl = document.getElementById("table-filter");
+  var exportPop = document.getElementById("export-pop");
+  var exportFrom = document.getElementById("export-from");
+  var exportTo = document.getElementById("export-to");
+  var exportGo = document.getElementById("export-go");
+  var exportNote = document.getElementById("export-note");
 
   // --- Chart view state ---
   var activeChart = "day";   // "day" | "hour"
   var selectedDay = null;    // ISO date for the time-of-day chart
   var pickerMonth = null;    // { y, m } currently shown in the calendar popover
   var filterDate = null;     // ISO date the entries table is filtered to (from a bar click)
+
+  // --- Table pagination ---
+  var PAGE_SIZE = 5;
+  var tablePage = 0;
 
   // --- Build segmented controls ---
   // optional=true lets the user clear the choice by tapping the selected option
@@ -1062,6 +1126,7 @@
         timestamp: timestamp
       });
     }
+    if (!editingId) tablePage = 0; // show the newly added entry on page 1
     saveEntries();
     render();
     resetForm();
@@ -1193,10 +1258,10 @@
     return '"' + String(value == null ? "" : value).replace(/"/g, '""') + '"';
   }
 
-  function entriesToCsv() {
+  function entriesToCsv(list) {
     var columns = ["What", "Category", "Self assessment", "Prep mode", "Date", "Time", "Estimated cals"];
     var lines = [columns.map(escapeCsv).join(",")];
-    sortedNewestFirst().forEach(function (en) {
+    list.forEach(function (en) {
       lines.push([
         en.what,
         en.category,
@@ -1210,10 +1275,10 @@
     return lines.join("\r\n");
   }
 
-  function downloadCsv() {
-    if (entries.length === 0) return;
+  function downloadCsv(list) {
+    if (!list.length) return;
     // Leading BOM so Excel reads UTF-8 (accented characters) correctly.
-    var blob = new Blob(["﻿" + entriesToCsv()], { type: "text/csv;charset=utf-8;" });
+    var blob = new Blob(["﻿" + entriesToCsv(list)], { type: "text/csv;charset=utf-8;" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
@@ -1226,7 +1291,28 @@
     URL.revokeObjectURL(url);
   }
 
-  exportBtn.addEventListener("click", downloadCsv);
+  // Export the selected date range (blank = open-ended → everything by default).
+  function exportRange() {
+    var from = exportFrom.value, to = exportTo.value;
+    var list = sortedNewestFirst().filter(function (en) {
+      return (!from || en.date >= from) && (!to || en.date <= to);
+    });
+    if (!list.length) { exportNote.classList.remove("hidden"); return; }
+    exportNote.classList.add("hidden");
+    downloadCsv(list);
+    exportPop.classList.add("hidden");
+  }
+
+  exportBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    exportNote.classList.add("hidden");
+    exportPop.classList.toggle("hidden");
+  });
+  exportGo.addEventListener("click", exportRange);
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".export-wrap")) exportPop.classList.add("hidden");
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") exportPop.classList.add("hidden"); });
 
   // --- Rendering ---
   var todayValueEl = document.getElementById("today-value");
@@ -1574,11 +1660,13 @@
     if (!hit) return;
     var d = hit.getAttribute("data-date");
     filterDate = (filterDate === d) ? null : d;
+    tablePage = 0;
     renderChart();   // update the pressed-in bar
     renderTable();   // apply / clear the filter
   });
   tableFilterEl.addEventListener("click", function () {
     filterDate = null;
+    tablePage = 0;
     renderChart();
     renderTable();
   });
@@ -1625,13 +1713,20 @@
       return;
     }
 
+    // Paginate: 5 rows per page.
+    var totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    if (tablePage > totalPages - 1) tablePage = totalPages - 1;
+    if (tablePage < 0) tablePage = 0;
+    var start = tablePage * PAGE_SIZE;
+    var pageRows = sorted.slice(start, start + PAGE_SIZE);
+
     var html = '<div class="table-scroll"><table><thead><tr>' +
       '<th>What</th><th>Category</th><th>Self assessment</th><th>Prep mode</th>' +
       '<th class="nowrap">Date</th><th>Time</th>' +
       '<th class="num nowrap">Cals</th><th>Actions</th>' +
       '</tr></thead><tbody>';
 
-    sorted.forEach(function (en) {
+    pageRows.forEach(function (en) {
       html += '<tr>' +
         '<td class="what">' + escapeHtml(en.what) + '</td>' +
         '<td>' + chip(en.category, CATEGORY_TAG[en.category]) + '</td>' +
@@ -1648,7 +1743,21 @@
     });
 
     html += '</tbody></table></div>';
+
+    // Pager (bottom left), only when there's more than one page.
+    if (sorted.length > PAGE_SIZE) {
+      html += '<div class="table-pager">' +
+        '<button type="button" class="pager-btn" id="pg-prev" aria-label="Previous page"' + (tablePage === 0 ? " disabled" : "") + '>‹</button>' +
+        '<span class="pager-info">' + (start + 1) + '–' + (start + pageRows.length) + ' of ' + sorted.length + '</span>' +
+        '<button type="button" class="pager-btn" id="pg-next" aria-label="Next page"' + (tablePage >= totalPages - 1 ? " disabled" : "") + '>›</button>' +
+        '</div>';
+    }
     wrap.innerHTML = html;
+
+    var pgPrev = wrap.querySelector("#pg-prev");
+    var pgNext = wrap.querySelector("#pg-next");
+    if (pgPrev) pgPrev.addEventListener("click", function () { tablePage--; renderTable(); });
+    if (pgNext) pgNext.addEventListener("click", function () { tablePage++; renderTable(); });
 
     wrap.querySelectorAll("[data-edit]").forEach(function (btn) {
       btn.addEventListener("click", function () {
