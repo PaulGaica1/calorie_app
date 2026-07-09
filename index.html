@@ -855,6 +855,9 @@
   var selectedDay = null;    // ISO date for the time-of-day chart
   var pickerMonth = null;    // { y, m } currently shown in the calendar popover
   var filterDate = null;     // ISO date the entries table is filtered to (from a bar click)
+  // Remembered horizontal scroll of the per-day chart. null = snap to the most
+  // recent day (right edge); a number = keep the user where they slid to.
+  var dayChartScroll = null;
 
   // --- Table pagination ---
   var PAGE_SIZE = 5;
@@ -1126,7 +1129,10 @@
         timestamp: timestamp
       });
     }
-    if (!editingId) tablePage = 0; // show the newly added entry on page 1
+    if (!editingId) {
+      tablePage = 0;        // show the newly added entry on page 1
+      dayChartScroll = null; // snap the day chart back to the most recent day
+    }
     saveEntries();
     render();
     resetForm();
@@ -1494,6 +1500,8 @@
   }
 
   // Chart 1: calories per day (stacked by meal), with LM/FW captions.
+  // All logged days render oldest→newest; the chart scrolls horizontally and
+  // defaults to the most recent day (right edge). Slide left to see history.
   function renderDayChart() {
     var chart = document.getElementById("chart");
     var byDate = {};
@@ -1523,7 +1531,11 @@
       return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate };
     });
     var notes = '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>';
-    drawStacked(chart, cols, { barSlot: 64, barW: 38, clickable: true, avgLine: avgDailyCalories(), ariaLabel: "Bar chart of calories per day, stacked by meal and coloured by self assessment. Click a bar to filter the table to that day.", legend: colorLegend(), notes: notes });
+    drawStacked(chart, cols, { barSlot: 64, barW: 38, clickable: true, avgLine: avgDailyCalories(), ariaLabel: "Bar chart of calories per day, stacked by meal and coloured by self assessment. Newest day is on the right; scroll left to see earlier days. Click a bar to filter the table to that day.", legend: colorLegend(), notes: notes });
+
+    // Default to the most recent day (right edge); otherwise keep the user where
+    // they slid to so incidental re-renders (bar clicks, edits) don't jump.
+    chart.scrollLeft = (dayChartScroll == null) ? chart.scrollWidth : dayChartScroll;
   }
 
   // Chart 2: calories by time of day for one selected day.
@@ -1650,7 +1662,13 @@
     activeChart = btn.getAttribute("data-chart");
     Array.prototype.forEach.call(chartToggle.children, function (b) { b.classList.toggle("active", b === btn); });
     daypicker.classList.toggle("hidden", activeChart !== "hour");
+    if (activeChart === "day") dayChartScroll = null; // re-open on the most recent day
     renderChart();
+  });
+
+  // Remember where the user slid the day chart so incidental re-renders keep it.
+  chartContainer.addEventListener("scroll", function () {
+    if (activeChart === "day") dayChartScroll = chartContainer.scrollLeft;
   });
 
   // Click a day bar → filter the table to that day (click again to clear).
