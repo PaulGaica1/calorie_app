@@ -548,8 +548,18 @@
   }
 
   /* Chart */
-  .chart-wrap { overflow-x: auto; }
-  .chart-wrap svg { display: block; margin: 0 auto; }
+  /* Plot = fixed y-axis (absolute, left) + horizontally-scrolling bars.
+     The y-axis and the legend/notes stay put; only the bars slide. */
+  .chart-plot { position: relative; }
+  .chart-yaxis {
+    position: absolute;
+    left: 0; top: 0;
+    z-index: 2;
+    background: var(--card);
+    pointer-events: none;
+  }
+  .chart-scroll { overflow-x: auto; margin-left: 50px; }
+  .chart-bars { display: block; margin: 0 auto; }
   .bar-value { fill: var(--text); font-family: var(--font-display); font-size: 12.5px; font-weight: 600; text-anchor: middle; font-variant-numeric: tabular-nums; }
   .bar-meta { fill: var(--muted); font-family: var(--font-body); font-size: 10px; font-weight: 400; text-anchor: middle; font-variant-numeric: tabular-nums; }
   .avg-label { fill: #9a9186; font-family: var(--font-body); font-size: 10.5px; font-weight: 600; text-anchor: end; font-variant-numeric: tabular-nums; }
@@ -1406,23 +1416,37 @@
     });
     if (opts.avgLine) maxVal = Math.max(maxVal, opts.avgLine * 1.06); // keep the line in view
     var totalGap = 8 + maxSub * 13;        // bar top → bold total
-    var padTop = totalGap + 14, padBottom = 46, padLeft = 50, padRight = 16;
-    var width;
+    var padTop = totalGap + 14, padBottom = 46, padRight = 16;
+    var yAxisW = 50; // fixed left column: the scale numbers live here, pinned
+    var GAP = 6;     // inset before the first bar inside the scrolling area
+    var innerWidth;  // width of the scrolling bars SVG (excludes the y-axis)
     if (opts.fitWidth) {
       // Fill the container exactly (no horizontal scroll); bars share the space.
-      width = Math.max(280, opts.fitWidth);
-      barSlot = (width - padLeft - padRight) / cols.length;
+      innerWidth = Math.max(220, opts.fitWidth - yAxisW);
+      barSlot = (innerWidth - GAP - padRight) / cols.length;
       barW = Math.min(opts.barW || 38, barSlot * 0.62);
     } else {
       barSlot = opts.barSlot || 64;
       barW = opts.barW || 38;
-      width = Math.max(320, padLeft + padRight + cols.length * barSlot);
+      innerWidth = GAP + cols.length * barSlot + padRight;
     }
     var height = padTop + plotH + padBottom;
     var baseY = padTop + plotH;
     var SEP = 1.6; // white gap between stacked meals
 
-    var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="' + (opts.ariaLabel || "") + '">';
+    // Gridline y-positions, shared by the fixed axis and the scrolling plot.
+    var ticks = [0, maxVal / 2, maxVal];
+    function tickY(t) { return baseY - (maxVal ? (t / maxVal) * plotH : 0); }
+
+    // --- Fixed y-axis (stays pinned while the bars scroll underneath) ---
+    var yaxis = '<svg class="chart-yaxis" width="' + yAxisW + '" height="' + height + '" viewBox="0 0 ' + yAxisW + ' ' + height + '" aria-hidden="true">';
+    ticks.forEach(function (t) {
+      yaxis += '<text class="axis-label" x="' + (yAxisW - 10) + '" y="' + (tickY(t) + 4) + '" style="text-anchor:end">' + fmtNum(Math.round(t)) + '</text>';
+    });
+    yaxis += '</svg>';
+
+    // --- Scrolling bars ---
+    var svg = '<svg class="chart-bars" width="' + innerWidth + '" height="' + height + '" viewBox="0 0 ' + innerWidth + ' ' + height + '" role="img" aria-label="' + (opts.ariaLabel || "") + '">';
     // Inner "interior shade" (same pressed look as the buttons) for a selected bar.
     svg += '<defs><filter id="barPress" x="-20%" y="-20%" width="140%" height="140%">' +
       '<feOffset in="SourceAlpha" dx="0" dy="3" result="o" />' +
@@ -1432,16 +1456,15 @@
       '<feComposite in2="sd" operator="in" />' +
       '</filter></defs>';
 
-    [0, maxVal / 2, maxVal].forEach(function (t) {
-      var y = baseY - (maxVal ? (t / maxVal) * plotH : 0);
-      svg += '<line class="axis-line" x1="' + padLeft + '" y1="' + y + '" x2="' + (width - padRight) + '" y2="' + y + '" />';
-      svg += '<text class="axis-label" x="' + (padLeft - 10) + '" y="' + (y + 4) + '" style="text-anchor:end">' + fmtNum(Math.round(t)) + '</text>';
+    ticks.forEach(function (t) {
+      var y = tickY(t);
+      svg += '<line class="axis-line" x1="0" y1="' + y + '" x2="' + (innerWidth - padRight) + '" y2="' + y + '" />';
     });
 
     cols.forEach(function (c, i) {
       var val = c.total;
       var h = maxVal ? (val / maxVal) * plotH : 0;
-      var x = padLeft + i * barSlot + (barSlot - barW) / 2;
+      var x = GAP + i * barSlot + (barSlot - barW) / 2;
       var y = baseY - h;
       var cx = x + barW / 2;
       var meals = c.meals || [];
@@ -1491,12 +1514,14 @@
     // Dotted grey line at the average daily calories (last ≤10 logged days).
     if (opts.avgLine && maxVal) {
       var ay = baseY - (opts.avgLine / maxVal) * plotH;
-      svg += '<line x1="' + padLeft + '" y1="' + ay + '" x2="' + (width - padRight) + '" y2="' + ay + '" stroke="#9a9186" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" pointer-events="none" />';
-      svg += '<text class="avg-label" x="' + (width - padRight) + '" y="' + (ay - 5) + '" pointer-events="none">avg ' + fmtNum(Math.round(opts.avgLine)) + '</text>';
+      svg += '<line x1="0" y1="' + ay + '" x2="' + (innerWidth - padRight) + '" y2="' + ay + '" stroke="#9a9186" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" pointer-events="none" />';
+      svg += '<text class="avg-label" x="' + (innerWidth - padRight) + '" y="' + (ay - 5) + '" pointer-events="none">avg ' + fmtNum(Math.round(opts.avgLine)) + '</text>';
     }
 
     svg += '</svg>';
-    chartEl.innerHTML = svg + (opts.legend || "") + (opts.notes || "");
+    chartEl.innerHTML =
+      '<div class="chart-plot">' + yaxis + '<div class="chart-scroll">' + svg + '</div></div>' +
+      (opts.legend || "") + (opts.notes || "");
   }
 
   // Chart 1: calories per day (stacked by meal), with LM/FW captions.
@@ -1535,7 +1560,8 @@
 
     // Default to the most recent day (right edge); otherwise keep the user where
     // they slid to so incidental re-renders (bar clicks, edits) don't jump.
-    chart.scrollLeft = (dayChartScroll == null) ? chart.scrollWidth : dayChartScroll;
+    var scroller = chart.querySelector(".chart-scroll");
+    if (scroller) scroller.scrollLeft = (dayChartScroll == null) ? scroller.scrollWidth : dayChartScroll;
   }
 
   // Chart 2: calories by time of day for one selected day.
@@ -1667,9 +1693,14 @@
   });
 
   // Remember where the user slid the day chart so incidental re-renders keep it.
-  chartContainer.addEventListener("scroll", function () {
-    if (activeChart === "day") dayChartScroll = chartContainer.scrollLeft;
-  });
+  // The scrolling element (.chart-scroll) is rebuilt each render, so listen in
+  // the capture phase on the stable container (scroll events don't bubble).
+  chartContainer.addEventListener("scroll", function (e) {
+    var t = e.target;
+    if (activeChart === "day" && t.classList && t.classList.contains("chart-scroll")) {
+      dayChartScroll = t.scrollLeft;
+    }
+  }, true);
 
   // Click a day bar → filter the table to that day (click again to clear).
   chartContainer.addEventListener("click", function (e) {
