@@ -475,6 +475,7 @@
     transition: background .14s, color .14s;
   }
   .chart-toggle button.active { background: #fff; color: var(--accent-d); box-shadow: var(--shadow-sm); }
+  .metric-toggle button { padding: 7px 12px; font-size: 13px; }
 
   .daypicker { position: relative; display: inline-flex; align-items: center; gap: 5px; }
   #day-btn { padding: 8px 14px; font-size: 14px; min-width: 96px; }
@@ -877,6 +878,11 @@
         <button type="button" data-chart="day" class="active">Per day</button>
         <button type="button" data-chart="hour">Time of day</button>
       </div>
+      <div class="chart-toggle metric-toggle" id="metric-toggle">
+        <button type="button" data-metric="calories">Calories</button>
+        <button type="button" data-metric="weight">Weight</button>
+        <button type="button" data-metric="both" class="active">Both</button>
+      </div>
       <div class="daypicker hidden" id="daypicker">
         <button type="button" class="day-nav" id="day-prev" aria-label="Previous day">‹</button>
         <button type="button" class="btn btn-ghost" id="day-btn">Today</button>
@@ -947,7 +953,7 @@
   var PREP_MODES = ["Home cooked", "Fridge scraps", "Delivery", "Restaurant", "Meal Prep", "Pick-up", "Office", "Other"];
   var WEIGHT_STORAGE_KEY = "weight-entries";
   var PREBM_OPTIONS = ["Yes", "No"];
-  var WEIGHT_BLUE = "#2f6fed"; // weight pill fill + time label (matches --weight)
+  var WEIGHT_BLUE = "#2f6fed"; // weight pill fill + reported-weight line
   // 7-day moving-average chip: light red when trending up vs. the day before,
   // light green when trending down, neutral when there's nothing to compare to.
   var MA_TREND = {
@@ -955,6 +961,8 @@
     down: { fill: "#d1ecc6", text: "#3f8f3a" },
     flat: { fill: "#ece4d8", text: "#8c8377" }
   };
+  // Stronger tones for the moving-average line segments (rising / falling).
+  var MA_LINE = { up: "#c0392b", down: "#3f8f3a", flat: "#9a9186" };
 
   // --- State ---
   var entries = loadEntries();
@@ -985,6 +993,7 @@
   var suggestionsEl = document.getElementById("what-suggestions");
   var chartToggle = document.getElementById("chart-toggle");
   var daypicker = document.getElementById("daypicker");
+  var metricToggle = document.getElementById("metric-toggle");
   var dayBtn = document.getElementById("day-btn");
   var dayPop = document.getElementById("day-pop");
   var dayPrev = document.getElementById("day-prev");
@@ -1027,6 +1036,7 @@
 
   // --- Chart view state ---
   var activeChart = "day";   // "day" | "hour"
+  var metricMode = "both";   // per-day content: "calories" | "weight" | "both"
   var selectedDay = null;    // ISO date for the time-of-day chart
   var pickerMonth = null;    // { y, m } currently shown in the calendar popover
   var filterDate = null;     // ISO date the entries table is filtered to (from a bar click)
@@ -1768,19 +1778,31 @@
     return legend + '<span><i style="background:' + SELF_GREY + '"></i>Not rated</span></div>';
   }
 
+  // Legend for the weight metrics (pills + moving-average line/chip).
+  function weightLegend() {
+    return '<div class="chart-legend">' +
+      '<span><i style="background:' + WEIGHT_BLUE + '"></i>Reported weight</span>' +
+      '<span><i style="background:' + MA_LINE.up + '"></i>7-day avg rising</span>' +
+      '<span><i style="background:' + MA_LINE.down + '"></i>7-day avg falling</span>' +
+      '</div>';
+  }
+
   // Generic stacked-bar renderer used by every chart view.
   // cols: [{ meals:[sorted entries], total, xlabel, today:bool, todayLabel:bool, sub:[strings] }]
   // opts: { barSlot, barW, ariaLabel, legend, notes }
   function drawStacked(chartEl, cols, opts) {
+    var showBars = opts.showBars !== false;      // calorie bars + axis + captions
+    var showWeightAnnot = !!opts.showWeightAnnot; // per-day weight pills + MA chips
+    var showWeightLines = !!opts.showWeightLines; // reported + moving-average lines
     var plotH = 210, barSlot, barW;
     var maxVal = 0, maxSub = 0, maxWeights = 0;
     cols.forEach(function (c) {
-      if (c.total > maxVal) maxVal = c.total;
-      if (c.sub && c.sub.length > maxSub) maxSub = c.sub.length;
-      if (c.weights && c.weights.length > maxWeights) maxWeights = c.weights.length;
+      if (showBars && c.total > maxVal) maxVal = c.total;
+      if (showBars && c.sub && c.sub.length > maxSub) maxSub = c.sub.length;
+      if (showWeightAnnot && c.weights && c.weights.length > maxWeights) maxWeights = c.weights.length;
     });
-    if (opts.avgLine) maxVal = Math.max(maxVal, opts.avgLine * 1.06); // keep the line in view
-    var totalGap = 8 + maxSub * 13;        // bar top → bold total
+    if (showBars && opts.avgLine) maxVal = Math.max(maxVal, opts.avgLine * 1.06); // keep the line in view
+    var totalGap = showBars ? (8 + maxSub * 13) : 0; // bar top → bold total
     // Each weight record sits under the day label as a 3-line block:
     // weight pill · 7-day moving-average chip · record time.
     var WPILL_H = 17, WGAP = 2, WROW = 52, WTOP = 28;
@@ -1804,7 +1826,8 @@
     var SEP = 1.6; // white gap between stacked meals
 
     // Gridline y-positions, shared by the fixed axis and the scrolling plot.
-    var ticks = [0, maxVal / 2, maxVal];
+    // No calorie axis when bars are hidden (weight-only view has no labels).
+    var ticks = showBars ? [0, maxVal / 2, maxVal] : [];
     function tickY(t) { return baseY - (maxVal ? (t / maxVal) * plotH : 0); }
 
     // --- Fixed y-axis (stays pinned while the bars scroll underneath) ---
@@ -1830,9 +1853,10 @@
       svg += '<line class="axis-line" x1="0" y1="' + y + '" x2="' + (innerWidth - padRight) + '" y2="' + y + '" />';
     });
 
+    var reportedPts = [], maPts = []; // weight line points, collected in date order
     cols.forEach(function (c, i) {
       var val = c.total;
-      var h = maxVal ? (val / maxVal) * plotH : 0;
+      var h = (showBars && maxVal) ? (val / maxVal) * plotH : 0;
       var x = GAP + i * barSlot + (barSlot - barW) / 2;
       var y = baseY - h;
       var cx = x + barW / 2;
@@ -1842,43 +1866,54 @@
       // anywhere on the bar (including its number) filters the table.
       var hit = (opts.clickable && c.key) ? (' data-date="' + c.key + '"') : "";
 
-      // Stack segments from the bottom up; only the topmost gets rounded corners.
-      var cursor = baseY;
-      meals.forEach(function (en, m) {
-        var segH = maxVal ? (en.estimatedCalories / maxVal) * plotH : 0;
-        var segTop = cursor - segH;
-        var lvl = entryLevel(en);
-        var fill = segColor(lvl, c.today);
-        var title = escapeHtml(en.what) + " — " + en.estimatedCalories + " cal · " + (lvl === -1 ? "Not rated" : SELF_ASSESSMENTS[lvl]);
-        if (m === meals.length - 1) {
-          svg += '<path d="' + topRoundedRect(x, segTop, barW, segH, 7) + '" fill="' + fill + '"' + hit + '><title>' + title + '</title></path>';
-        } else {
-          svg += '<rect x="' + x + '" y="' + segTop + '" width="' + barW + '" height="' + segH + '" fill="' + fill + '"' + hit + '><title>' + title + '</title></rect>';
-          svg += '<rect x="' + x + '" y="' + (segTop - SEP / 2) + '" width="' + barW + '" height="' + SEP + '" fill="#ffffff" pointer-events="none" />';
+      if (showBars) {
+        // Stack segments from the bottom up; only the topmost gets rounded corners.
+        var cursor = baseY;
+        meals.forEach(function (en, m) {
+          var segH = maxVal ? (en.estimatedCalories / maxVal) * plotH : 0;
+          var segTop = cursor - segH;
+          var lvl = entryLevel(en);
+          var fill = segColor(lvl, c.today);
+          var title = escapeHtml(en.what) + " — " + en.estimatedCalories + " cal · " + (lvl === -1 ? "Not rated" : SELF_ASSESSMENTS[lvl]);
+          if (m === meals.length - 1) {
+            svg += '<path d="' + topRoundedRect(x, segTop, barW, segH, 7) + '" fill="' + fill + '"' + hit + '><title>' + title + '</title></path>';
+          } else {
+            svg += '<rect x="' + x + '" y="' + segTop + '" width="' + barW + '" height="' + segH + '" fill="' + fill + '"' + hit + '><title>' + title + '</title></rect>';
+            svg += '<rect x="' + x + '" y="' + (segTop - SEP / 2) + '" width="' + barW + '" height="' + SEP + '" fill="#ffffff" pointer-events="none" />';
+          }
+          cursor = segTop;
+        });
+
+        // Past bars get a thin outline ("fixed"); today's has none.
+        if (!c.today && h > 0) {
+          svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="none" stroke="rgba(54,42,28,.3)" stroke-width="1.5" pointer-events="none" />';
         }
-        cursor = segTop;
-      });
 
-      // Past bars get a thin outline ("fixed"); today's has none.
-      if (!c.today && h > 0) {
-        svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="none" stroke="rgba(54,42,28,.3)" stroke-width="1.5" pointer-events="none" />';
+        // Selected bar: overlay a pressed-in interior shade (matches the buttons).
+        if (c.selected && h > 0) {
+          svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="#000" filter="url(#barPress)" pointer-events="none" />';
+          svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="none" stroke="' + SELF_COLORS[3] + '" stroke-width="2" pointer-events="none" />';
+        }
+
+        // Caption: bold total on top, optional lean sub-lines beneath.
+        if (val > 0 || meals.length) {
+          svg += '<text class="bar-value" x="' + cx + '" y="' + (y - totalGap) + '"' + hit + '>' + fmtNum(val) + '</text>';
+        }
+        (c.sub || []).forEach(function (s, k) {
+          svg += '<text class="bar-meta" x="' + cx + '" y="' + (y - (totalGap - 13 * (k + 1))) + '"' + hit + '>' + s + '</text>';
+        });
       }
 
-      // Selected bar: overlay a pressed-in interior shade (matches the buttons).
-      if (c.selected && h > 0) {
-        svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="#000" filter="url(#barPress)" pointer-events="none" />';
-        svg += '<path d="' + topRoundedRect(x, y, barW, h, 7) + '" fill="none" stroke="' + SELF_COLORS[3] + '" stroke-width="2" pointer-events="none" />';
-      }
-
-      // Caption: bold total on top, optional lean sub-lines beneath.
-      if (val > 0 || meals.length) {
-        svg += '<text class="bar-value" x="' + cx + '" y="' + (y - totalGap) + '"' + hit + '>' + fmtNum(val) + '</text>';
-      }
-      (c.sub || []).forEach(function (s, k) {
-        svg += '<text class="bar-meta" x="' + cx + '" y="' + (y - (totalGap - 13 * (k + 1))) + '"' + hit + '>' + s + '</text>';
-      });
+      // Day label (x-axis) always shown.
       svg += '<text class="axis-label' + (c.todayLabel ? " today" : "") + '" x="' + cx + '" y="' + (baseY + 18) + '"' + hit + '>' + c.xlabel + '</text>';
 
+      // Collect weight line points (day mean reported weight + moving average).
+      if (showWeightLines) {
+        if (c.weightMean != null) reportedPts.push({ x: cx, v: c.weightMean });
+        if (c.maValue != null) maPts.push({ x: cx, v: c.maValue, trend: c.maTrend });
+      }
+
+      if (!showWeightAnnot) return;
       // Weight records for the day, each as a 3-line block: blue weight pill
       // (white text) · 7-day moving-average chip (light red up / green down) ·
       // record time. Stacked when there's more than one weigh-in.
@@ -1903,10 +1938,30 @@
     });
 
     // Dotted grey line at the average daily calories (last ≤10 logged days).
-    if (opts.avgLine && maxVal) {
+    if (showBars && opts.avgLine && maxVal) {
       var ay = baseY - (opts.avgLine / maxVal) * plotH;
       svg += '<line x1="0" y1="' + ay + '" x2="' + (innerWidth - padRight) + '" y2="' + ay + '" stroke="#9a9186" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" pointer-events="none" />';
       svg += '<text class="avg-label" x="' + (innerWidth - padRight) + '" y="' + (ay - 5) + '" pointer-events="none">avg ' + fmtNum(Math.round(opts.avgLine)) + '</text>';
+    }
+
+    // Weight lines (no axis/labels): blue reported-weight line + moving-average
+    // line drawn in red/green segments (red when rising vs. the prior point).
+    // Reported and MA share one hidden scale so their shapes are comparable.
+    if (showWeightLines && (reportedPts.length || maPts.length)) {
+      var vals = reportedPts.map(function (p) { return p.v; }).concat(maPts.map(function (p) { return p.v; }));
+      var wMin = Math.min.apply(null, vals), wMax = Math.max.apply(null, vals);
+      var lineTop = padTop + 14, lineBot = baseY - 14;
+      var wy = function (v) { return (wMax === wMin) ? (lineTop + lineBot) / 2 : lineBot - (v - wMin) / (wMax - wMin) * (lineBot - lineTop); };
+      if (reportedPts.length > 1) {
+        var dpath = reportedPts.map(function (p, ix) { return (ix ? "L" : "M") + p.x + "," + wy(p.v); }).join(" ");
+        svg += '<path d="' + dpath + '" fill="none" stroke="' + WEIGHT_BLUE + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" pointer-events="none" />';
+      }
+      for (var mi = 1; mi < maPts.length; mi++) {
+        var a = maPts[mi - 1], b = maPts[mi];
+        svg += '<line x1="' + a.x + '" y1="' + wy(a.v) + '" x2="' + b.x + '" y2="' + wy(b.v) + '" stroke="' + (MA_LINE[b.trend] || MA_LINE.flat) + '" stroke-width="2" stroke-linecap="round" pointer-events="none" />';
+      }
+      reportedPts.forEach(function (p) { svg += '<circle cx="' + p.x + '" cy="' + wy(p.v) + '" r="2.6" fill="' + WEIGHT_BLUE + '" pointer-events="none" />'; });
+      maPts.forEach(function (p) { svg += '<circle cx="' + p.x + '" cy="' + wy(p.v) + '" r="2.6" fill="' + (MA_LINE[p.trend] || MA_LINE.flat) + '" pointer-events="none" />'; });
     }
 
     svg += '</svg>';
@@ -1971,17 +2026,30 @@
       }
       var total = meals.reduce(function (s, en) { return s + en.estimatedCalories; }, 0);
       var weights = (weightByDate[d] || []).map(function (w) { return { kg: w.weightKg, time: w.time }; });
-      // Moving-average chip: compare this day's 7-day avg to the previous day's.
-      var weightMA = null;
+      // Moving-average chip + line point: compare this day's 7-day avg to the
+      // previous day's. weightMean drives the reported-weight line.
+      var weightMA = null, maValue = null, maTrend = null, weightMean = null;
       if (weights.length) {
-        var maVal = movingAvgWeight(d), prevMA = movingAvgWeight(prevDateStr(d));
-        var trend = (prevMA == null) ? "flat" : (maVal > prevMA ? "up" : maVal < prevMA ? "down" : "flat");
-        weightMA = { text: "7d " + (Math.round(maVal * 10) / 10), trend: trend };
+        weightMean = dayMeanWeight[d];
+        maValue = movingAvgWeight(d);
+        var prevMA = movingAvgWeight(prevDateStr(d));
+        maTrend = (prevMA == null) ? "flat" : (maValue > prevMA ? "up" : maValue < prevMA ? "down" : "flat");
+        weightMA = { text: (Math.round(maValue * 10) / 10) + " kg", trend: maTrend };
       }
-      return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate, weights: weights, weightMA: weightMA };
+      return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate, weights: weights, weightMA: weightMA, weightMean: weightMean, maValue: maValue, maTrend: maTrend };
     });
-    var notes = '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>';
-    drawStacked(chart, cols, { barSlot: 64, barW: 38, clickable: true, avgLine: avgDailyCalories(), ariaLabel: "Bar chart of calories per day, stacked by meal and coloured by self assessment. Newest day is on the right; scroll left to see earlier days. Click a bar to filter the table to that day.", legend: colorLegend(), notes: notes });
+    var showBars = metricMode !== "weight";
+    var showWeight = metricMode !== "calories";
+    var hasWeight = weightEntries.length > 0;
+    var legend = (showBars ? colorLegend() : "") + ((showWeight && hasWeight) ? weightLegend() : "");
+    var notes = showBars ? '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>' : "";
+    drawStacked(chart, cols, {
+      barSlot: 64, barW: 38, clickable: true,
+      showBars: showBars, showWeightLines: showWeight, showWeightAnnot: showWeight,
+      avgLine: showBars ? avgDailyCalories() : null,
+      ariaLabel: "Per-day chart. " + (showBars ? "Calorie bars stacked by meal and coloured by self assessment. " : "") + (showWeight ? "Reported weight and 7-day moving-average lines. " : "") + "Newest day on the right; scroll left for history.",
+      legend: legend, notes: notes
+    });
 
     // Default to the most recent day (right edge); otherwise keep the user where
     // they slid to so incidental re-renders (bar clicks, edits) don't jump.
@@ -2113,7 +2181,17 @@
     activeChart = btn.getAttribute("data-chart");
     Array.prototype.forEach.call(chartToggle.children, function (b) { b.classList.toggle("active", b === btn); });
     daypicker.classList.toggle("hidden", activeChart !== "hour");
+    metricToggle.classList.toggle("hidden", activeChart !== "day"); // day view only
     if (activeChart === "day") dayChartScroll = null; // re-open on the most recent day
+    renderChart();
+  });
+
+  // Per-day content toggle: Calories bars / Weight lines / Both.
+  metricToggle.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-metric]");
+    if (!btn) return;
+    metricMode = btn.getAttribute("data-metric");
+    Array.prototype.forEach.call(metricToggle.children, function (b) { b.classList.toggle("active", b === btn); });
     renderChart();
   });
 
