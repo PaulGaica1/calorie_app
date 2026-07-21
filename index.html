@@ -343,6 +343,14 @@
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
+  /* Chip-based time picker: hours (3-col grid) · AM/PM · quarter-hours.
+     Reuses the .segmented chip look; only the per-section layout differs. */
+  .time-picker { display: flex; flex-direction: column; gap: 12px; max-width: 340px; }
+  .time-hours { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+  .time-ampm, .time-mins { display: flex; gap: 7px; }
+  .time-hours label, .time-ampm label, .time-mins label { text-align: center; }
+  .time-ampm label, .time-mins label { flex: 1; padding-left: 8px; padding-right: 8px; }
+
   /* Self-assessment slider */
   .slider-field { --self-color: var(--self-grey, #b8b0a4); }
   .slider-readout {
@@ -789,25 +797,23 @@
         <div class="segmented" id="prep-group"></div>
       </div>
 
-      <div class="row">
-        <div class="field">
-          <label for="date">Date</label>
-          <input type="date" id="date" />
-          <div class="quick">
-            <button type="button" data-date="today">Today</button>
-            <button type="button" data-date="yesterday">Yesterday</button>
-          </div>
+      <div class="field">
+        <label for="date">Date</label>
+        <input type="date" id="date" />
+        <div class="quick">
+          <button type="button" data-date="today">Today</button>
+          <button type="button" data-date="yesterday">Yesterday</button>
         </div>
-        <div class="field">
-          <label for="time">Time</label>
-          <input type="time" id="time" />
-          <div class="quick">
-            <button type="button" data-time="0">Now</button>
-            <button type="button" data-time="15">15 min ago</button>
-            <button type="button" data-time="30">30 min ago</button>
-            <button type="button" data-time="60">1 hour ago</button>
-          </div>
+      </div>
+
+      <div class="field">
+        <label>Time</label>
+        <div class="time-picker">
+          <div class="segmented time-hours" id="time-hours"></div>
+          <div class="segmented time-ampm" id="time-ampm"></div>
+          <div class="segmented time-mins" id="time-mins"></div>
         </div>
+        <input type="hidden" id="time" />
       </div>
 
       <div class="field">
@@ -834,25 +840,23 @@
         <div class="segmented" id="prebm-group"></div>
       </div>
 
-      <div class="row">
-        <div class="field">
-          <label for="weight-date">Date</label>
-          <input type="date" id="weight-date" />
-          <div class="quick">
-            <button type="button" data-wdate="today">Today</button>
-            <button type="button" data-wdate="yesterday">Yesterday</button>
-          </div>
+      <div class="field">
+        <label for="weight-date">Date</label>
+        <input type="date" id="weight-date" />
+        <div class="quick">
+          <button type="button" data-wdate="today">Today</button>
+          <button type="button" data-wdate="yesterday">Yesterday</button>
         </div>
-        <div class="field">
-          <label for="weight-time">Time</label>
-          <input type="time" id="weight-time" />
-          <div class="quick">
-            <button type="button" data-wtime="0">Now</button>
-            <button type="button" data-wtime="15">15 min ago</button>
-            <button type="button" data-wtime="30">30 min ago</button>
-            <button type="button" data-wtime="60">1 hour ago</button>
-          </div>
+      </div>
+
+      <div class="field">
+        <label>Time</label>
+        <div class="time-picker">
+          <div class="segmented time-hours" id="weight-time-hours"></div>
+          <div class="segmented time-ampm" id="weight-time-ampm"></div>
+          <div class="segmented time-mins" id="weight-time-mins"></div>
         </div>
+        <input type="hidden" id="weight-time" />
       </div>
 
       <div class="actions">
@@ -969,6 +973,14 @@
   var weightError = document.getElementById("weight-error");
   var weightSaved = document.getElementById("weight-saved");
 
+  // Chip time-picker containers (calorie + weight forms)
+  var timeHours = document.getElementById("time-hours");
+  var timeAmpm = document.getElementById("time-ampm");
+  var timeMins = document.getElementById("time-mins");
+  var wTimeHours = document.getElementById("weight-time-hours");
+  var wTimeAmpm = document.getElementById("weight-time-ampm");
+  var wTimeMins = document.getElementById("weight-time-mins");
+
   // --- Chart view state ---
   var activeChart = "day";   // "day" | "hour"
   var selectedDay = null;    // ISO date for the time-of-day chart
@@ -985,17 +997,20 @@
   // --- Build segmented controls ---
   // optional=true lets the user clear the choice by tapping the selected option
   // again (plain radio buttons can't be unchecked otherwise).
+  // Each option is either a string (value === label) or { value, label }.
   function buildSegmented(container, name, options, optional) {
     options.forEach(function (opt, i) {
+      var value = (opt && typeof opt === "object") ? opt.value : opt;
+      var text = (opt && typeof opt === "object") ? opt.label : opt;
       var id = name + "-" + i;
       var input = document.createElement("input");
       input.type = "radio";
       input.name = name;
       input.id = id;
-      input.value = opt;
+      input.value = value;
       var label = document.createElement("label");
       label.setAttribute("for", id);
-      label.textContent = opt;
+      label.textContent = text;
       container.appendChild(input);
       container.appendChild(label);
 
@@ -1023,6 +1038,43 @@
   buildSegmented(categoryGroup, "category", CATEGORIES, false);
   buildSegmented(prepGroup, "prepMode", PREP_MODES, true);
   buildSegmented(prebmGroup, "prebm", PREBM_OPTIONS, true); // optional Yes/No
+
+  // --- Chip time picker ---
+  // Three chip sections (hour 1-12 · AM/PM · quarter-hour) compose a 24h
+  // "HH:MM" value written into a hidden input, so the rest of the app is
+  // unchanged (2pm :00 -> "14:00"). Returns { set } to load an existing time.
+  var HOUR_OPTS = ["12", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"];
+  var MIN_OPTS = [{ value: "00", label: ":00" }, { value: "15", label: ":15" }, { value: "30", label: ":30" }, { value: "45", label: ":45" }];
+  function makeTimePicker(hoursEl, ampmEl, minsEl, hiddenEl) {
+    buildSegmented(hoursEl, hoursEl.id, HOUR_OPTS, false);
+    buildSegmented(ampmEl, ampmEl.id, ["AM", "PM"], false);
+    buildSegmented(minsEl, minsEl.id, MIN_OPTS, false);
+    function compose() {
+      var h12 = +getSelected(hoursEl), ap = getSelected(ampmEl), mm = getSelected(minsEl);
+      if (!h12 || !ap || !mm) return; // incomplete selection; keep last value
+      var h24 = (ap === "PM") ? (h12 % 12) + 12 : (h12 % 12);
+      hiddenEl.value = pad(h24) + ":" + mm;
+    }
+    [hoursEl, ampmEl, minsEl].forEach(function (g) { g.addEventListener("change", compose); });
+    function set(hhmm) {
+      var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || "");
+      var h24, mins;
+      if (m) { h24 = +m[1]; mins = +m[2]; } else { var n = new Date(); h24 = n.getHours(); mins = n.getMinutes(); }
+      // The picker only represents quarter-hours; snap to the nearest one.
+      var qm = Math.round(mins / 15) * 15, carry = 0;
+      if (qm === 60) { qm = 0; carry = 1; }
+      h24 = (h24 + carry) % 24;
+      var ap = h24 >= 12 ? "PM" : "AM";
+      var h12 = h24 % 12; if (h12 === 0) h12 = 12;
+      setSelected(hoursEl, String(h12));
+      setSelected(ampmEl, ap);
+      setSelected(minsEl, pad(qm));
+      compose();
+    }
+    return { set: set };
+  }
+  var calorieTime = makeTimePicker(timeHours, timeAmpm, timeMins, timeEl);
+  var weightTime = makeTimePicker(wTimeHours, wTimeAmpm, wTimeMins, weightTimeEl);
 
   // --- Self-assessment slider ---
   // Optional: starts "unrated" (grey) and only commits to a value once touched.
@@ -1169,7 +1221,7 @@
     setSelfAssessment("");
     setSelected(prepGroup, "");
     dateEl.value = dateStr(now);
-    timeEl.value = timeStr(now);
+    calorieTime.set(timeStr(now));
     errorEl.textContent = "";
     saveBtn.textContent = "Save entry";
     cancelBtn.classList.add("hidden");
@@ -1185,7 +1237,7 @@
     setSelfAssessment(entry.selfAssessment || "");
     setSelected(prepGroup, entry.prepMode || "");
     dateEl.value = entry.date;
-    timeEl.value = entry.time;
+    calorieTime.set(entry.time);
     caloriesEl.value = entry.estimatedCalories;
     errorEl.textContent = "";
     saveBtn.textContent = "Update entry";
@@ -1291,16 +1343,6 @@
     });
   });
 
-  // Quick time buttons (minutes-ago, recomputed from the current moment)
-  document.querySelectorAll("[data-time]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var mins = parseInt(btn.getAttribute("data-time"), 10);
-      var d = new Date();
-      d.setMinutes(d.getMinutes() - mins);
-      timeEl.value = timeStr(d);
-    });
-  });
-
   // --- Entry mode toggle (Calories / Weight) ---
   // Swaps which input zone is visible; both live in the same card.
   function setEntryMode(mode) {
@@ -1330,16 +1372,6 @@
     });
   });
 
-  // Weight quick time buttons (minutes-ago)
-  document.querySelectorAll("[data-wtime]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var mins = parseInt(btn.getAttribute("data-wtime"), 10);
-      var d = new Date();
-      d.setMinutes(d.getMinutes() - mins);
-      weightTimeEl.value = timeStr(d);
-    });
-  });
-
   function hideWeightSaved() { weightSaved.classList.add("hidden"); }
 
   // Reset the weight form to a clean state with date/time = now.
@@ -1349,7 +1381,7 @@
     weightKgEl.value = "";
     setSelected(prebmGroup, "");
     weightDateEl.value = dateStr(now);
-    weightTimeEl.value = timeStr(now);
+    weightTime.set(timeStr(now));
     weightError.textContent = "";
   }
 
@@ -1450,7 +1482,7 @@
     setSelfAssessment(rec.selfAssessment || "");
     setSelected(prepGroup, rec.prepMode || "");
     caloriesEl.value = rec.estimatedCalories;
-    timeEl.value = rec.time;
+    calorieTime.set(rec.time);
     dateEl.value = dateStr(new Date()); // keep the current day
     hideSuggestions();
     caloriesEl.focus();
