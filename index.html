@@ -18,6 +18,10 @@
     --accent: #2f9e6e;
     --accent-d: #268a5f;
     --accent-soft: #e3f3ea;
+    /* Weight tracker uses a blue accent instead of the green calorie one. */
+    --weight: #2f6fed;
+    --weight-d: #2558c8;
+    --weight-soft: #e6eefc;
     --coral: #f2674f;
     --danger: #d64541;
     --danger-soft: #fbe9e7;
@@ -146,6 +150,18 @@
     transition: background .14s, color .14s;
   }
   .entry-toggle button.active { background: #fff; color: var(--accent-d); box-shadow: var(--shadow-sm); }
+  /* Weight mode is blue-themed: recolour the active Weight tab + the whole
+     weight form by locally remapping the accent variables to the blue set. */
+  .entry-toggle button[data-mode="weight"].active { color: var(--weight-d); }
+  #weight-form {
+    --accent: var(--weight);
+    --accent-d: var(--weight-d);
+    --accent-soft: var(--weight-soft);
+  }
+  #weight-form .segmented input:checked + label {
+    box-shadow: inset 0 2px 5px rgba(20, 45, 100, .5), inset 0 -1px 0 rgba(255, 255, 255, .12);
+  }
+  #weight-form .btn-primary:active { box-shadow: inset 0 3px 8px rgba(20, 45, 100, .5); }
 
   /* Weight-saved confirmation */
   .weight-saved {
@@ -595,6 +611,8 @@
   .bar-value { fill: var(--text); font-family: var(--font-display); font-size: 12.5px; font-weight: 600; text-anchor: middle; font-variant-numeric: tabular-nums; }
   .bar-meta { fill: var(--muted); font-family: var(--font-body); font-size: 10px; font-weight: 400; text-anchor: middle; font-variant-numeric: tabular-nums; }
   .avg-label { fill: #9a9186; font-family: var(--font-body); font-size: 10.5px; font-weight: 600; text-anchor: end; font-variant-numeric: tabular-nums; }
+  .weight-pill-text { fill: #fff; font-family: var(--font-display); font-size: 10.5px; font-weight: 600; text-anchor: middle; font-variant-numeric: tabular-nums; pointer-events: none; }
+  .weight-time-text { fill: var(--weight); font-family: var(--font-body); font-size: 10px; font-weight: 400; text-anchor: middle; font-variant-numeric: tabular-nums; }
   .axis-label { fill: var(--muted); font-size: 11px; text-anchor: middle; }
   .axis-label.today { fill: var(--text); font-weight: 700; }
   .axis-line { stroke: #efe7da; stroke-width: 1; }
@@ -900,6 +918,7 @@
   var PREP_MODES = ["Home cooked", "Fridge scraps", "Delivery", "Restaurant", "Meal Prep", "Pick-up", "Office", "Other"];
   var WEIGHT_STORAGE_KEY = "weight-entries";
   var PREBM_OPTIONS = ["Yes", "No"];
+  var WEIGHT_BLUE = "#2f6fed"; // weight pill fill + time label (matches --weight)
 
   // --- State ---
   var entries = loadEntries();
@@ -1113,6 +1132,7 @@
   function dateStr(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
   function timeStr(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
   function fmtNum(n) { return Number(n).toLocaleString("en-US"); } // 1000 -> "1,000"
+  function fmtWeight(kg) { return (Math.round(Number(kg) * 10) / 10) + " kg"; } // 72.53 -> "72.5 kg"
   function timeToMin(t) { return (+t.slice(0, 2)) * 60 + (+t.slice(3, 5)); } // "hh:mm" -> minutes
   function prevDateStr(iso) { var d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() - 1); return dateStr(d); }
   // Friendly, compact date for the table (e.g. "Jun 29"); adds the year only
@@ -1365,6 +1385,7 @@
     saveWeightEntries();
     resetWeightForm();
     weightSaved.classList.remove("hidden");
+    render(); // surface the new weight record under its day in the chart
   });
   weightKgEl.addEventListener("input", hideWeightSaved);
 
@@ -1608,14 +1629,18 @@
   // opts: { barSlot, barW, ariaLabel, legend, notes }
   function drawStacked(chartEl, cols, opts) {
     var plotH = 210, barSlot, barW;
-    var maxVal = 0, maxSub = 0;
+    var maxVal = 0, maxSub = 0, maxWeights = 0;
     cols.forEach(function (c) {
       if (c.total > maxVal) maxVal = c.total;
       if (c.sub && c.sub.length > maxSub) maxSub = c.sub.length;
+      if (c.weights && c.weights.length > maxWeights) maxWeights = c.weights.length;
     });
     if (opts.avgLine) maxVal = Math.max(maxVal, opts.avgLine * 1.06); // keep the line in view
     var totalGap = 8 + maxSub * 13;        // bar top → bold total
-    var padTop = totalGap + 14, padBottom = 46, padRight = 16;
+    // Weight records (blue pill + time) sit under each day label, below the axis.
+    var WPILL_H = 17, WROW = 34, WTOP = 30; // pill height, row pitch, gap under label
+    var padTop = totalGap + 14, padRight = 16;
+    var padBottom = Math.max(46, maxWeights ? WTOP + maxWeights * WROW + 4 : 46);
     var yAxisW = 50; // fixed left column: the scale numbers live here, pinned
     var GAP = 6;     // inset before the first bar inside the scrolling area
     var innerWidth;  // width of the scrolling bars SVG (excludes the y-axis)
@@ -1708,6 +1733,17 @@
         svg += '<text class="bar-meta" x="' + cx + '" y="' + (y - (totalGap - 13 * (k + 1))) + '"' + hit + '>' + s + '</text>';
       });
       svg += '<text class="axis-label' + (c.todayLabel ? " today" : "") + '" x="' + cx + '" y="' + (baseY + 18) + '"' + hit + '>' + c.xlabel + '</text>';
+
+      // Weight records for the day: blue rounded pill (weight in white) with the
+      // record's time in thin blue underneath. Stacked if there's more than one.
+      (c.weights || []).forEach(function (w, k) {
+        var wy = baseY + WTOP + k * WROW;
+        var label = fmtWeight(w.kg);
+        var pillW = Math.max(30, label.length * 6.6 + 14);
+        svg += '<rect x="' + (cx - pillW / 2) + '" y="' + wy + '" width="' + pillW + '" height="' + WPILL_H + '" rx="8" ry="8" fill="' + WEIGHT_BLUE + '"><title>' + escapeHtml(label) + ' at ' + escapeHtml(w.time) + '</title></rect>';
+        svg += '<text class="weight-pill-text" x="' + cx + '" y="' + (wy + WPILL_H / 2 + 3.7) + '">' + escapeHtml(label) + '</text>';
+        svg += '<text class="weight-time-text" x="' + cx + '" y="' + (wy + WPILL_H + 11) + '">' + escapeHtml(w.time) + '</text>';
+      });
     });
 
     // Dotted grey line at the average daily calories (last ≤10 logged days).
@@ -1737,6 +1773,12 @@
     }
     Object.keys(byDate).forEach(function (k) { byDate[k].sort(byTimeAsc); });
     var todayKey = dateStr(new Date());
+    // Weight records grouped by day (earliest first), shown under each day column.
+    var weightByDate = {};
+    weightEntries.forEach(function (w) { (weightByDate[w.date] = weightByDate[w.date] || []).push(w); });
+    Object.keys(weightByDate).forEach(function (k) {
+      weightByDate[k].sort(function (a, b) { return a.time < b.time ? -1 : a.time > b.time ? 1 : 0; });
+    });
     function fastWindowMin(date) {
       var meals = byDate[date], prev = byDate[prevDateStr(date)];
       if (!meals || !meals.length || !prev || !prev.length) return null;
@@ -1752,7 +1794,8 @@
         sub.push("FW: " + (fw == null ? "—" : fmtHours(fw)));
       }
       var total = meals.reduce(function (s, en) { return s + en.estimatedCalories; }, 0);
-      return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate };
+      var weights = (weightByDate[d] || []).map(function (w) { return { kg: w.weightKg, time: w.time }; });
+      return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate, weights: weights };
     });
     var notes = '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>';
     drawStacked(chart, cols, { barSlot: 64, barW: 38, clickable: true, avgLine: avgDailyCalories(), ariaLabel: "Bar chart of calories per day, stacked by meal and coloured by self assessment. Newest day is on the right; scroll left to see earlier days. Click a bar to filter the table to that day.", legend: colorLegend(), notes: notes });
