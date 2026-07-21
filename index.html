@@ -475,9 +475,8 @@
     transition: background .14s, color .14s;
   }
   .chart-toggle button.active { background: #fff; color: var(--accent-d); box-shadow: var(--shadow-sm); }
-  .metric-toggle button { padding: 7px 12px; font-size: 13px; }
 
-  /* Section headings when Calories + Weight charts are stacked ("Both" mode) */
+  /* Section headings when Calories + Weight charts are stacked */
   .chart-section-title {
     font-family: var(--font-display);
     font-size: 19px;
@@ -888,11 +887,6 @@
         <button type="button" data-chart="day" class="active">Per day</button>
         <button type="button" data-chart="hour">Time of day</button>
       </div>
-      <div class="chart-toggle metric-toggle" id="metric-toggle">
-        <button type="button" data-metric="calories">Calories</button>
-        <button type="button" data-metric="weight">Weight</button>
-        <button type="button" data-metric="both" class="active">Both</button>
-      </div>
       <div class="daypicker hidden" id="daypicker">
         <button type="button" class="day-nav" id="day-prev" aria-label="Previous day">‹</button>
         <button type="button" class="btn btn-ghost" id="day-btn">Today</button>
@@ -1003,7 +997,6 @@
   var suggestionsEl = document.getElementById("what-suggestions");
   var chartToggle = document.getElementById("chart-toggle");
   var daypicker = document.getElementById("daypicker");
-  var metricToggle = document.getElementById("metric-toggle");
   var dayBtn = document.getElementById("day-btn");
   var dayPop = document.getElementById("day-pop");
   var dayPrev = document.getElementById("day-prev");
@@ -1046,7 +1039,6 @@
 
   // --- Chart view state ---
   var activeChart = "day";   // "day" | "hour"
-  var metricMode = "both";   // per-day content: "calories" | "weight" | "both"
   var selectedDay = null;    // ISO date for the time-of-day chart
   var pickerMonth = null;    // { y, m } currently shown in the calendar popover
   var filterDate = null;     // ISO date the entries table is filtered to (from a bar click)
@@ -2053,14 +2045,10 @@
       return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate, weights: weights, weightMA: weightMA, weightMean: weightMean, maValue: maValue, maTrend: maTrend };
     });
     // Calories and Weight are drawn as two separate stacked blocks (not
-    // overlaid): calories full height on top, weight squished below. Only shown
-    // together in "Both" mode; each block gets a header then.
-    var showBars = metricMode !== "weight";
-    var showWeight = (metricMode !== "calories") && weightEntries.length > 0;
-    if (!showBars && !showWeight) {
-      chart.innerHTML = '<div class="empty">No weight entries yet — add one above.</div>';
-      return;
-    }
+    // overlaid): calories full height on top, weight squished below. Each block
+    // appears only when it has data; headers show only when both are present.
+    var showBars = entries.length > 0;
+    var showWeight = weightEntries.length > 0;
     var both = showBars && showWeight;
     var html = "";
     if (showBars) {
@@ -2215,17 +2203,7 @@
     activeChart = btn.getAttribute("data-chart");
     Array.prototype.forEach.call(chartToggle.children, function (b) { b.classList.toggle("active", b === btn); });
     daypicker.classList.toggle("hidden", activeChart !== "hour");
-    metricToggle.classList.toggle("hidden", activeChart !== "day"); // day view only
     if (activeChart === "day") dayChartScroll = null; // re-open on the most recent day
-    renderChart();
-  });
-
-  // Per-day content toggle: Calories bars / Weight lines / Both.
-  metricToggle.addEventListener("click", function (e) {
-    var btn = e.target.closest("button[data-metric]");
-    if (!btn) return;
-    metricMode = btn.getAttribute("data-metric");
-    Array.prototype.forEach.call(metricToggle.children, function (b) { b.classList.toggle("active", b === btn); });
     renderChart();
   });
 
