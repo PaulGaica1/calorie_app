@@ -477,6 +477,16 @@
   .chart-toggle button.active { background: #fff; color: var(--accent-d); box-shadow: var(--shadow-sm); }
   .metric-toggle button { padding: 7px 12px; font-size: 13px; }
 
+  /* Section headings when Calories + Weight charts are stacked ("Both" mode) */
+  .chart-section-title {
+    font-family: var(--font-display);
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 2px 2px 12px;
+  }
+  .chart-section-weight { margin-top: 24px; }
+
   .daypicker { position: relative; display: inline-flex; align-items: center; gap: 5px; }
   #day-btn { padding: 8px 14px; font-size: 14px; min-width: 96px; }
   #day-btn::after { content: " ▾"; color: var(--muted); }
@@ -1790,11 +1800,12 @@
   // Generic stacked-bar renderer used by every chart view.
   // cols: [{ meals:[sorted entries], total, xlabel, today:bool, todayLabel:bool, sub:[strings] }]
   // opts: { barSlot, barW, ariaLabel, legend, notes }
-  function drawStacked(chartEl, cols, opts) {
+  // Returns the chart block HTML (fixed y-axis + scrolling plot + legend/notes).
+  function drawStacked(cols, opts) {
     var showBars = opts.showBars !== false;      // calorie bars + axis + captions
     var showWeightAnnot = !!opts.showWeightAnnot; // per-day weight pills + MA chips
     var showWeightLines = !!opts.showWeightLines; // reported + moving-average lines
-    var plotH = 210, barSlot, barW;
+    var plotH = opts.plotH || 210, barSlot, barW;
     var maxVal = 0, maxSub = 0, maxWeights = 0;
     cols.forEach(function (c) {
       if (showBars && c.total > maxVal) maxVal = c.total;
@@ -1950,8 +1961,12 @@
     if (showWeightLines && (reportedPts.length || maPts.length)) {
       var vals = reportedPts.map(function (p) { return p.v; }).concat(maPts.map(function (p) { return p.v; }));
       var wMin = Math.min.apply(null, vals), wMax = Math.max.apply(null, vals);
+      // Fixed ±2 kg window around the data centre so small day-to-day changes
+      // read as small; only widen past that if the data spans more than 4 kg.
+      var mid = (wMin + wMax) / 2, half = Math.max(2, (wMax - wMin) / 2 + 0.15);
+      var lo = mid - half, hi = mid + half;
       var lineTop = padTop + 14, lineBot = baseY - 14;
-      var wy = function (v) { return (wMax === wMin) ? (lineTop + lineBot) / 2 : lineBot - (v - wMin) / (wMax - wMin) * (lineBot - lineTop); };
+      var wy = function (v) { return lineBot - (v - lo) / (hi - lo) * (lineBot - lineTop); };
       if (reportedPts.length > 1) {
         var dpath = reportedPts.map(function (p, ix) { return (ix ? "L" : "M") + p.x + "," + wy(p.v); }).join(" ");
         svg += '<path d="' + dpath + '" fill="none" stroke="' + WEIGHT_BLUE + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" pointer-events="none" />';
@@ -1965,8 +1980,7 @@
     }
 
     svg += '</svg>';
-    chartEl.innerHTML =
-      '<div class="chart-plot">' + yaxis + '<div class="chart-scroll">' + svg + '</div></div>' +
+    return '<div class="chart-plot">' + yaxis + '<div class="chart-scroll">' + svg + '</div></div>' +
       (opts.legend || "") + (opts.notes || "");
   }
 
@@ -2038,23 +2052,43 @@
       }
       return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate, weights: weights, weightMA: weightMA, weightMean: weightMean, maValue: maValue, maTrend: maTrend };
     });
+    // Calories and Weight are drawn as two separate stacked blocks (not
+    // overlaid): calories full height on top, weight squished below. Only shown
+    // together in "Both" mode; each block gets a header then.
     var showBars = metricMode !== "weight";
-    var showWeight = metricMode !== "calories";
-    var hasWeight = weightEntries.length > 0;
-    var legend = (showBars ? colorLegend() : "") + ((showWeight && hasWeight) ? weightLegend() : "");
-    var notes = showBars ? '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>' : "";
-    drawStacked(chart, cols, {
-      barSlot: 64, barW: 38, clickable: true,
-      showBars: showBars, showWeightLines: showWeight, showWeightAnnot: showWeight,
-      avgLine: showBars ? avgDailyCalories() : null,
-      ariaLabel: "Per-day chart. " + (showBars ? "Calorie bars stacked by meal and coloured by self assessment. " : "") + (showWeight ? "Reported weight and 7-day moving-average lines. " : "") + "Newest day on the right; scroll left for history.",
-      legend: legend, notes: notes
-    });
+    var showWeight = (metricMode !== "calories") && weightEntries.length > 0;
+    if (!showBars && !showWeight) {
+      chart.innerHTML = '<div class="empty">No weight entries yet — add one above.</div>';
+      return;
+    }
+    var both = showBars && showWeight;
+    var html = "";
+    if (showBars) {
+      var notes = '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>';
+      if (both) html += '<div class="chart-section-title">Calories</div>';
+      html += drawStacked(cols, {
+        barSlot: 64, barW: 38, clickable: true, showBars: true, plotH: 210,
+        avgLine: avgDailyCalories(),
+        ariaLabel: "Calories per day, stacked by meal and coloured by self assessment. Newest day on the right; scroll left for history.",
+        legend: colorLegend(), notes: notes
+      });
+    }
+    if (showWeight) {
+      if (both) html += '<div class="chart-section-title chart-section-weight">Weight</div>';
+      html += drawStacked(cols, {
+        barSlot: 64, barW: 38, clickable: true, showBars: false, plotH: 90,
+        showWeightLines: true, showWeightAnnot: true,
+        ariaLabel: "Reported weight and 7-day moving-average lines per day, on a fixed ±2 kg scale. Newest day on the right.",
+        legend: weightLegend()
+      });
+    }
+    chart.innerHTML = html;
 
     // Default to the most recent day (right edge); otherwise keep the user where
-    // they slid to so incidental re-renders (bar clicks, edits) don't jump.
-    var scroller = chart.querySelector(".chart-scroll");
-    if (scroller) scroller.scrollLeft = (dayChartScroll == null) ? scroller.scrollWidth : dayChartScroll;
+    // they slid to. Both blocks share one horizontal scroll position.
+    Array.prototype.forEach.call(chart.querySelectorAll(".chart-scroll"), function (s) {
+      s.scrollLeft = (dayChartScroll == null) ? s.scrollWidth : dayChartScroll;
+    });
   }
 
   // Chart 2: calories by time of day for one selected day.
@@ -2080,7 +2114,7 @@
         sub: []
       };
     });
-    drawStacked(chart, cols, {
+    chart.innerHTML = drawStacked(cols, {
       fitWidth: chart.clientWidth || 600,
       barW: 46,
       avgLine: avgDailyCalories(),
@@ -2202,6 +2236,10 @@
     var t = e.target;
     if (activeChart === "day" && t.classList && t.classList.contains("chart-scroll")) {
       dayChartScroll = t.scrollLeft;
+      // Keep the calorie + weight blocks aligned on one shared scroll position.
+      Array.prototype.forEach.call(chartContainer.querySelectorAll(".chart-scroll"), function (s) {
+        if (s !== t && s.scrollLeft !== t.scrollLeft) s.scrollLeft = t.scrollLeft;
+      });
     }
   }, true);
 
