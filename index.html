@@ -621,6 +621,7 @@
   .avg-label { fill: #9a9186; font-family: var(--font-body); font-size: 10.5px; font-weight: 600; text-anchor: end; font-variant-numeric: tabular-nums; }
   .weight-pill-text { fill: #fff; font-family: var(--font-display); font-size: 10.5px; font-weight: 600; text-anchor: middle; font-variant-numeric: tabular-nums; pointer-events: none; }
   .weight-time-text { fill: var(--weight); font-family: var(--font-body); font-size: 10px; font-weight: 400; text-anchor: middle; font-variant-numeric: tabular-nums; }
+  .weight-ma-text { font-family: var(--font-display); font-size: 9.5px; font-weight: 600; text-anchor: middle; font-variant-numeric: tabular-nums; pointer-events: none; }
   .axis-label { fill: var(--muted); font-size: 11px; text-anchor: middle; }
   .axis-label.today { fill: var(--text); font-weight: 700; }
   .axis-line { stroke: #efe7da; stroke-width: 1; }
@@ -830,6 +831,7 @@
 
     <!-- Weight input zone (shown when the "Weight" toggle is active) -->
     <form id="weight-form" class="hidden" novalidate>
+      <div id="weight-editing-banner" class="editing-banner hidden">Editing weight — make your changes and click Update.</div>
       <div class="field">
         <label for="weight-kg">Weight (kg)</label>
         <input type="text" id="weight-kg" inputmode="decimal" placeholder="e.g. 72.5" autocomplete="off" />
@@ -861,6 +863,7 @@
 
       <div class="actions">
         <button type="submit" class="btn btn-primary" id="weight-save-btn">Save weight</button>
+        <button type="button" class="btn btn-ghost hidden" id="weight-cancel-btn">Cancel</button>
       </div>
       <div class="error" id="weight-error" role="alert"></div>
       <div class="weight-saved hidden" id="weight-saved">Weight saved ✓</div>
@@ -905,6 +908,28 @@
     </div>
     <div id="table-wrap"></div>
   </section>
+
+  <!-- 4. Weight log table -->
+  <section class="card">
+    <div class="section-head">
+      <div class="section-head-left">
+        <h2>Weight log</h2>
+        <button type="button" class="filter-chip hidden" id="weight-table-filter"></button>
+      </div>
+      <div class="export-wrap">
+        <button type="button" class="btn btn-ghost" id="weight-export-btn">Export CSV</button>
+        <div class="export-pop hidden" id="weight-export-pop">
+          <div class="export-title">Export weight log</div>
+          <label class="export-field">From <input type="date" id="weight-export-from" /></label>
+          <label class="export-field">To <input type="date" id="weight-export-to" /></label>
+          <div class="export-hint">Leave blank to export everything.</div>
+          <div class="export-note hidden" id="weight-export-note">No entries in that range.</div>
+          <button type="button" class="btn btn-primary" id="weight-export-go">Download CSV</button>
+        </div>
+      </div>
+    </div>
+    <div id="weight-table-wrap"></div>
+  </section>
 </div>
 
 <script>
@@ -923,12 +948,21 @@
   var WEIGHT_STORAGE_KEY = "weight-entries";
   var PREBM_OPTIONS = ["Yes", "No"];
   var WEIGHT_BLUE = "#2f6fed"; // weight pill fill + time label (matches --weight)
+  // 7-day moving-average chip: light red when trending up vs. the day before,
+  // light green when trending down, neutral when there's nothing to compare to.
+  var MA_TREND = {
+    up:   { fill: "#f6d0cc", text: "#c0392b" },
+    down: { fill: "#d1ecc6", text: "#3f8f3a" },
+    flat: { fill: "#ece4d8", text: "#8c8377" }
+  };
 
   // --- State ---
   var entries = loadEntries();
   var editingId = null; // null = creating, otherwise editing existing entry id
   var weightEntries = loadWeightEntries();
   var entryMode = "calories"; // "calories" | "weight"
+  var editingWeightId = null; // null = creating, otherwise editing a weight entry
+  var weightTablePage = 0;
 
   // --- Element refs ---
   var form = document.getElementById("entry-form");
@@ -972,6 +1006,16 @@
   var weightTimeEl = document.getElementById("weight-time");
   var weightError = document.getElementById("weight-error");
   var weightSaved = document.getElementById("weight-saved");
+  var weightSaveBtn = document.getElementById("weight-save-btn");
+  var weightCancelBtn = document.getElementById("weight-cancel-btn");
+  var weightEditingBanner = document.getElementById("weight-editing-banner");
+  var weightExportBtn = document.getElementById("weight-export-btn");
+  var weightExportPop = document.getElementById("weight-export-pop");
+  var weightExportFrom = document.getElementById("weight-export-from");
+  var weightExportTo = document.getElementById("weight-export-to");
+  var weightExportGo = document.getElementById("weight-export-go");
+  var weightExportNote = document.getElementById("weight-export-note");
+  var weightTableFilterEl = document.getElementById("weight-table-filter");
 
   // Chip time-picker containers (calorie + weight forms)
   var timeHours = document.getElementById("time-hours");
@@ -1353,8 +1397,9 @@
     var isCal = mode === "calories";
     form.classList.toggle("hidden", !isCal);
     weightForm.classList.toggle("hidden", isCal);
-    // The editing banner only applies to the calorie form.
+    // Each form shows its own editing banner only while active + editing.
     editingBanner.classList.toggle("hidden", !(isCal && editingId));
+    weightEditingBanner.classList.toggle("hidden", !(!isCal && editingWeightId));
     if (isCal) hideWeightSaved();
     else hideSuggestions();
   }
@@ -1374,8 +1419,9 @@
 
   function hideWeightSaved() { weightSaved.classList.add("hidden"); }
 
-  // Reset the weight form to a clean state with date/time = now.
+  // Reset the weight form to a clean "create" state with date/time = now.
   function resetWeightForm() {
+    editingWeightId = null;
     var now = new Date();
     weightForm.reset();
     weightKgEl.value = "";
@@ -1383,9 +1429,28 @@
     weightDateEl.value = dateStr(now);
     weightTime.set(timeStr(now));
     weightError.textContent = "";
+    weightSaveBtn.textContent = "Save weight";
+    weightCancelBtn.classList.add("hidden");
+    weightEditingBanner.classList.add("hidden");
   }
 
-  // Validate + save a weight entry.
+  function loadWeightIntoForm(entry) {
+    setEntryMode("weight");
+    editingWeightId = entry.id;
+    hideWeightSaved();
+    weightKgEl.value = entry.weightKg;
+    setSelected(prebmGroup, entry.preBM || "");
+    weightDateEl.value = entry.date;
+    weightTime.set(entry.time);
+    weightError.textContent = "";
+    weightSaveBtn.textContent = "Update weight";
+    weightCancelBtn.classList.remove("hidden");
+    weightEditingBanner.classList.remove("hidden");
+    weightKgEl.focus();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // Validate + save (create or update) a weight entry.
   weightForm.addEventListener("submit", function (e) {
     e.preventDefault();
     hideWeightSaved();
@@ -1406,24 +1471,37 @@
       return;
     }
     weightError.textContent = "";
-    weightEntries.push({
-      id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
-      weightKg: kg,
-      preBM: getSelected(prebmGroup), // "Yes" | "No" | ""
-      date: date,
-      time: time,
-      timestamp: date + "T" + time + ":00"
-    });
+    var preBM = getSelected(prebmGroup); // "Yes" | "No" | ""
+    var timestamp = date + "T" + time + ":00";
+    if (editingWeightId) {
+      var existing = weightEntries.find(function (w) { return w.id === editingWeightId; });
+      if (existing) {
+        existing.weightKg = kg; existing.preBM = preBM;
+        existing.date = date; existing.time = time; existing.timestamp = timestamp;
+      }
+    } else {
+      weightEntries.push({
+        id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
+        weightKg: kg, preBM: preBM, date: date, time: time, timestamp: timestamp
+      });
+      weightTablePage = 0; // show the newly added record on page 1
+    }
     saveWeightEntries();
+    render(); // surface the record under its day in the chart + weight table
     resetWeightForm();
     weightSaved.classList.remove("hidden");
-    render(); // surface the new weight record under its day in the chart
   });
+  weightCancelBtn.addEventListener("click", resetWeightForm);
   weightKgEl.addEventListener("input", hideWeightSaved);
 
   // Entries sorted by timestamp, newest first (shared by table + CSV export).
   function sortedNewestFirst() {
     return entries.slice().sort(function (a, b) {
+      return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
+    });
+  }
+  function sortedWeightNewestFirst() {
+    return weightEntries.slice().sort(function (a, b) {
       return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
     });
   }
@@ -1543,20 +1621,31 @@
     return lines.join("\r\n");
   }
 
-  function downloadCsv(list) {
-    if (!list.length) return;
-    // Leading BOM so Excel reads UTF-8 (accented characters) correctly.
-    var blob = new Blob(["﻿" + entriesToCsv(list)], { type: "text/csv;charset=utf-8;" });
+  // Trigger a CSV file download. Leading BOM so Excel reads UTF-8 correctly.
+  function saveCsvBlob(csv, prefix) {
+    var blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
     var now = new Date();
     var stamp = dateStr(now) + "_" + pad(now.getHours()) + "-" + pad(now.getMinutes()) + "-" + pad(now.getSeconds());
-    a.download = "data_furball_lol_" + stamp + ".csv";
+    a.download = prefix + stamp + ".csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+  function downloadCsv(list) {
+    if (list.length) saveCsvBlob(entriesToCsv(list), "data_furball_lol_");
+  }
+
+  function weightEntriesToCsv(list) {
+    var columns = ["Weight (kg)", "pre-BM", "Date", "Time"];
+    var lines = [columns.map(escapeCsv).join(",")];
+    list.forEach(function (w) {
+      lines.push([w.weightKg, w.preBM || "", w.date, w.time].map(escapeCsv).join(","));
+    });
+    return lines.join("\r\n");
   }
 
   // Export the selected date range (blank = open-ended → everything by default).
@@ -1570,6 +1659,16 @@
     downloadCsv(list);
     exportPop.classList.add("hidden");
   }
+  function exportWeightRange() {
+    var from = weightExportFrom.value, to = weightExportTo.value;
+    var list = sortedWeightNewestFirst().filter(function (w) {
+      return (!from || w.date >= from) && (!to || w.date <= to);
+    });
+    if (!list.length) { weightExportNote.classList.remove("hidden"); return; }
+    weightExportNote.classList.add("hidden");
+    saveCsvBlob(weightEntriesToCsv(list), "weight_furball_lol_");
+    weightExportPop.classList.add("hidden");
+  }
 
   exportBtn.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -1577,10 +1676,21 @@
     exportPop.classList.toggle("hidden");
   });
   exportGo.addEventListener("click", exportRange);
-  document.addEventListener("click", function (e) {
-    if (!e.target.closest(".export-wrap")) exportPop.classList.add("hidden");
+  weightExportBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    weightExportNote.classList.add("hidden");
+    weightExportPop.classList.toggle("hidden");
   });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") exportPop.classList.add("hidden"); });
+  weightExportGo.addEventListener("click", exportWeightRange);
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".export-wrap")) {
+      exportPop.classList.add("hidden");
+      weightExportPop.classList.add("hidden");
+    }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { exportPop.classList.add("hidden"); weightExportPop.classList.add("hidden"); }
+  });
 
   // --- Rendering ---
   var todayValueEl = document.getElementById("today-value");
@@ -1588,8 +1698,10 @@
   function render() {
     renderChart();
     renderTable();
+    renderWeightTable();
     renderTodayStat();
     exportBtn.disabled = entries.length === 0;
+    weightExportBtn.disabled = weightEntries.length === 0;
   }
 
   function renderTodayStat() {
@@ -1669,8 +1781,9 @@
     });
     if (opts.avgLine) maxVal = Math.max(maxVal, opts.avgLine * 1.06); // keep the line in view
     var totalGap = 8 + maxSub * 13;        // bar top → bold total
-    // Weight records (blue pill + time) sit under each day label, below the axis.
-    var WPILL_H = 17, WROW = 34, WTOP = 30; // pill height, row pitch, gap under label
+    // Each weight record sits under the day label as a 3-line block:
+    // weight pill · 7-day moving-average chip · record time.
+    var WPILL_H = 17, WGAP = 2, WROW = 52, WTOP = 28;
     var padTop = totalGap + 14, padRight = 16;
     var padBottom = Math.max(46, maxWeights ? WTOP + maxWeights * WROW + 4 : 46);
     var yAxisW = 50; // fixed left column: the scale numbers live here, pinned
@@ -1766,15 +1879,26 @@
       });
       svg += '<text class="axis-label' + (c.todayLabel ? " today" : "") + '" x="' + cx + '" y="' + (baseY + 18) + '"' + hit + '>' + c.xlabel + '</text>';
 
-      // Weight records for the day: blue rounded pill (weight in white) with the
-      // record's time in thin blue underneath. Stacked if there's more than one.
+      // Weight records for the day, each as a 3-line block: blue weight pill
+      // (white text) · 7-day moving-average chip (light red up / green down) ·
+      // record time. Stacked when there's more than one weigh-in.
+      var ma = c.weightMA;
       (c.weights || []).forEach(function (w, k) {
         var wy = baseY + WTOP + k * WROW;
         var label = fmtWeight(w.kg);
         var pillW = Math.max(30, label.length * 6.6 + 14);
         svg += '<rect x="' + (cx - pillW / 2) + '" y="' + wy + '" width="' + pillW + '" height="' + WPILL_H + '" rx="8" ry="8" fill="' + WEIGHT_BLUE + '"><title>' + escapeHtml(label) + ' at ' + escapeHtml(w.time) + '</title></rect>';
         svg += '<text class="weight-pill-text" x="' + cx + '" y="' + (wy + WPILL_H / 2 + 3.7) + '">' + escapeHtml(label) + '</text>';
-        svg += '<text class="weight-time-text" x="' + cx + '" y="' + (wy + WPILL_H + 11) + '">' + escapeHtml(w.time) + '</text>';
+
+        // 7-day moving-average chip
+        var maY = wy + WPILL_H + WGAP;
+        if (ma) {
+          var tone = MA_TREND[ma.trend] || MA_TREND.flat;
+          var maW = Math.max(30, ma.text.length * 6.2 + 14);
+          svg += '<rect x="' + (cx - maW / 2) + '" y="' + maY + '" width="' + maW + '" height="' + WPILL_H + '" rx="8" ry="8" fill="' + tone.fill + '"><title>7-day moving average</title></rect>';
+          svg += '<text class="weight-ma-text" x="' + cx + '" y="' + (maY + WPILL_H / 2 + 3.7) + '" fill="' + tone.text + '">' + escapeHtml(ma.text) + '</text>';
+        }
+        svg += '<text class="weight-time-text" x="' + cx + '" y="' + (maY + WPILL_H + 11) + '">' + escapeHtml(w.time) + '</text>';
       });
     });
 
@@ -1804,6 +1928,21 @@
     Object.keys(weightByDate).forEach(function (k) {
       weightByDate[k].sort(function (a, b) { return a.time < b.time ? -1 : a.time > b.time ? 1 : 0; });
     });
+    // Each day's mean weight, then a 7-day trailing moving average that ignores
+    // days with no weigh-in (blanks). Used for the per-day moving-average chip.
+    var dayMeanWeight = {};
+    Object.keys(weightByDate).forEach(function (d) {
+      var arr = weightByDate[d];
+      dayMeanWeight[d] = arr.reduce(function (s, w) { return s + w.weightKg; }, 0) / arr.length;
+    });
+    function movingAvgWeight(date) {
+      var sum = 0, count = 0, dd = date;
+      for (var i = 0; i < 7; i++) {
+        if (dayMeanWeight[dd] != null) { sum += dayMeanWeight[dd]; count++; }
+        dd = prevDateStr(dd);
+      }
+      return count ? sum / count : null;
+    }
     // A day appears if it has calories OR a weight record (union of both stores).
     var dateSet = {};
     Object.keys(byDate).forEach(function (d) { dateSet[d] = true; });
@@ -1832,7 +1971,14 @@
       }
       var total = meals.reduce(function (s, en) { return s + en.estimatedCalories; }, 0);
       var weights = (weightByDate[d] || []).map(function (w) { return { kg: w.weightKg, time: w.time }; });
-      return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate, weights: weights };
+      // Moving-average chip: compare this day's 7-day avg to the previous day's.
+      var weightMA = null;
+      if (weights.length) {
+        var maVal = movingAvgWeight(d), prevMA = movingAvgWeight(prevDateStr(d));
+        var trend = (prevMA == null) ? "flat" : (maVal > prevMA ? "up" : maVal < prevMA ? "down" : "flat");
+        weightMA = { text: "7d " + (Math.round(maVal * 10) / 10), trend: trend };
+      }
+      return { meals: meals, total: total, xlabel: isToday ? "Today" : d.slice(5), today: isToday, todayLabel: isToday, sub: sub, key: d, selected: d === filterDate, weights: weights, weightMA: weightMA };
     });
     var notes = '<div class="chart-notes">LM = last meal · FW = fasting window (first meal − previous day\'s last meal)</div>';
     drawStacked(chart, cols, { barSlot: 64, barW: 38, clickable: true, avgLine: avgDailyCalories(), ariaLabel: "Bar chart of calories per day, stacked by meal and coloured by self assessment. Newest day is on the right; scroll left to see earlier days. Click a bar to filter the table to that day.", legend: colorLegend(), notes: notes });
@@ -1989,15 +2135,21 @@
     var d = hit.getAttribute("data-date");
     filterDate = (filterDate === d) ? null : d;
     tablePage = 0;
-    renderChart();   // update the pressed-in bar
-    renderTable();   // apply / clear the filter
+    weightTablePage = 0;
+    renderChart();       // update the pressed-in bar
+    renderTable();       // apply / clear the filter
+    renderWeightTable();
   });
-  tableFilterEl.addEventListener("click", function () {
+  function clearDayFilter() {
     filterDate = null;
     tablePage = 0;
+    weightTablePage = 0;
     renderChart();
     renderTable();
-  });
+    renderWeightTable();
+  }
+  tableFilterEl.addEventListener("click", clearDayFilter);
+  weightTableFilterEl.addEventListener("click", clearDayFilter);
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -2023,6 +2175,14 @@
       tableFilterEl.classList.remove("hidden");
     } else {
       tableFilterEl.classList.add("hidden");
+    }
+  }
+  function updateWeightFilterChip() {
+    if (filterDate) {
+      weightTableFilterEl.textContent = formatDateShort(filterDate);
+      weightTableFilterEl.classList.remove("hidden");
+    } else {
+      weightTableFilterEl.classList.add("hidden");
     }
   }
 
@@ -2099,6 +2259,80 @@
         entries = entries.filter(function (en) { return en.id !== id; });
         if (editingId === id) resetForm();
         saveEntries();
+        render();
+      });
+    });
+  }
+
+  // Weight log table — same behaviour as the entries table (newest first,
+  // 5/page, day filter, edit/delete), only the columns differ.
+  function renderWeightTable() {
+    var wrap = document.getElementById("weight-table-wrap");
+    updateWeightFilterChip();
+    if (weightEntries.length === 0) {
+      wrap.innerHTML = '<div class="empty">No weight entries yet.</div>';
+      return;
+    }
+
+    var sorted = sortedWeightNewestFirst();
+    if (filterDate) sorted = sorted.filter(function (w) { return w.date === filterDate; });
+    if (!sorted.length) {
+      wrap.innerHTML = '<div class="empty">No weight entries on ' + escapeHtml(formatDateShort(filterDate)) + '.</div>';
+      return;
+    }
+
+    var totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    if (weightTablePage > totalPages - 1) weightTablePage = totalPages - 1;
+    if (weightTablePage < 0) weightTablePage = 0;
+    var start = weightTablePage * PAGE_SIZE;
+    var pageRows = sorted.slice(start, start + PAGE_SIZE);
+
+    var html = '<div class="table-scroll"><table><thead><tr>' +
+      '<th class="num nowrap">Weight (kg)</th><th>pre-BM</th>' +
+      '<th class="nowrap">Date</th><th>Time</th><th>Actions</th>' +
+      '</tr></thead><tbody>';
+
+    pageRows.forEach(function (w) {
+      html += '<tr>' +
+        '<td class="num">' + escapeHtml(String(w.weightKg)) + '</td>' +
+        chipCell(w.preBM, "tag-slate") +
+        '<td class="nowrap">' + escapeHtml(formatDateShort(w.date)) + '</td>' +
+        '<td class="nowrap">' + escapeHtml(w.time) + '</td>' +
+        '<td class="table-actions">' +
+          '<button class="icon-btn" data-wedit="' + w.id + '">Edit</button>' +
+          '<button class="icon-btn danger" data-wdelete="' + w.id + '">Delete</button>' +
+        '</td>' +
+      '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+
+    if (sorted.length > PAGE_SIZE) {
+      html += '<div class="table-pager">' +
+        '<button type="button" class="pager-btn" id="wpg-prev" aria-label="Previous page"' + (weightTablePage === 0 ? " disabled" : "") + '>‹</button>' +
+        '<span class="pager-info">' + (start + 1) + '–' + (start + pageRows.length) + ' of ' + sorted.length + '</span>' +
+        '<button type="button" class="pager-btn" id="wpg-next" aria-label="Next page"' + (weightTablePage >= totalPages - 1 ? " disabled" : "") + '>›</button>' +
+        '</div>';
+    }
+    wrap.innerHTML = html;
+
+    var pgPrev = wrap.querySelector("#wpg-prev");
+    var pgNext = wrap.querySelector("#wpg-next");
+    if (pgPrev) pgPrev.addEventListener("click", function () { weightTablePage--; renderWeightTable(); });
+    if (pgNext) pgNext.addEventListener("click", function () { weightTablePage++; renderWeightTable(); });
+
+    wrap.querySelectorAll("[data-wedit]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var entry = weightEntries.find(function (w) { return w.id === btn.getAttribute("data-wedit"); });
+        if (entry) loadWeightIntoForm(entry);
+      });
+    });
+    wrap.querySelectorAll("[data-wdelete]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-wdelete");
+        weightEntries = weightEntries.filter(function (w) { return w.id !== id; });
+        if (editingWeightId === id) resetWeightForm();
+        saveWeightEntries();
         render();
       });
     });
