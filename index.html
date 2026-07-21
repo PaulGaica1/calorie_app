@@ -1766,29 +1766,34 @@
     var chart = document.getElementById("chart");
     var byDate = {};
     entries.forEach(function (en) { (byDate[en.date] = byDate[en.date] || []).push(en); });
-    var dates = Object.keys(byDate).sort();
-    if (!dates.length) {
-      chart.innerHTML = '<div class="empty">No entries yet — add one above to see your daily totals.</div>';
-      return;
-    }
-    Object.keys(byDate).forEach(function (k) { byDate[k].sort(byTimeAsc); });
-    var todayKey = dateStr(new Date());
     // Weight records grouped by day (earliest first), shown under each day column.
     var weightByDate = {};
     weightEntries.forEach(function (w) { (weightByDate[w.date] = weightByDate[w.date] || []).push(w); });
     Object.keys(weightByDate).forEach(function (k) {
       weightByDate[k].sort(function (a, b) { return a.time < b.time ? -1 : a.time > b.time ? 1 : 0; });
     });
+    // A day appears if it has calories OR a weight record (union of both stores).
+    var dateSet = {};
+    Object.keys(byDate).forEach(function (d) { dateSet[d] = true; });
+    Object.keys(weightByDate).forEach(function (d) { dateSet[d] = true; });
+    var dates = Object.keys(dateSet).sort();
+    if (!dates.length) {
+      chart.innerHTML = '<div class="empty">No entries yet — add one above to see your daily totals.</div>';
+      return;
+    }
+    Object.keys(byDate).forEach(function (k) { byDate[k].sort(byTimeAsc); });
+    var todayKey = dateStr(new Date());
     function fastWindowMin(date) {
       var meals = byDate[date], prev = byDate[prevDateStr(date)];
       if (!meals || !meals.length || !prev || !prev.length) return null;
       return (1440 - timeToMin(prev[prev.length - 1].time)) + timeToMin(meals[0].time);
     }
     var cols = dates.map(function (d) {
-      var meals = byDate[d];
+      var meals = byDate[d] || [];
       var isToday = d === todayKey;
       var sub = [];
-      if (!isToday) {
+      // LM/FW captions only make sense on past days that actually logged meals.
+      if (!isToday && meals.length) {
         sub.push("LM: " + meals[meals.length - 1].time);
         var fw = fastWindowMin(d);
         sub.push("FW: " + (fw == null ? "—" : fmtHours(fw)));
