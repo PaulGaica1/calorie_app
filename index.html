@@ -123,6 +123,38 @@
   .section-head-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 
+  /* Entry mode toggle (Calories / Weight) — sits atop the Add entry card */
+  .entry-toggle {
+    display: flex;
+    background: var(--bg-2);
+    border-radius: 12px;
+    padding: 3px;
+    gap: 2px;
+    margin-bottom: 22px;
+  }
+  .entry-toggle button {
+    flex: 1;
+    border: none;
+    background: none;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 14.5px;
+    color: var(--muted);
+    padding: 9px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background .14s, color .14s;
+  }
+  .entry-toggle button.active { background: #fff; color: var(--accent-d); box-shadow: var(--shadow-sm); }
+
+  /* Weight-saved confirmation */
+  .weight-saved {
+    color: var(--accent-d);
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 12px;
+  }
+
   /* Active table filter (from clicking a chart bar) */
   .filter-chip {
     display: inline-flex;
@@ -701,6 +733,10 @@
   <!-- 1. Entry form -->
   <section class="card">
     <h2>Add entry</h2>
+    <div class="entry-toggle" id="entry-toggle">
+      <button type="button" data-mode="calories" class="active">Calories</button>
+      <button type="button" data-mode="weight">Weight</button>
+    </div>
     <div id="editing-banner" class="editing-banner hidden">Editing entry — make your changes and click Update.</div>
     <form id="entry-form" novalidate>
       <div class="field">
@@ -767,6 +803,46 @@
       </div>
       <div class="error" id="error" role="alert"></div>
     </form>
+
+    <!-- Weight input zone (shown when the "Weight" toggle is active) -->
+    <form id="weight-form" class="hidden" novalidate>
+      <div class="field">
+        <label for="weight-kg">Weight (kg)</label>
+        <input type="text" id="weight-kg" inputmode="decimal" placeholder="e.g. 72.5" autocomplete="off" />
+      </div>
+
+      <div class="field">
+        <label>pre-BM?</label>
+        <div class="segmented" id="prebm-group"></div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="weight-date">Date</label>
+          <input type="date" id="weight-date" />
+          <div class="quick">
+            <button type="button" data-wdate="today">Today</button>
+            <button type="button" data-wdate="yesterday">Yesterday</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="weight-time">Time</label>
+          <input type="time" id="weight-time" />
+          <div class="quick">
+            <button type="button" data-wtime="0">Now</button>
+            <button type="button" data-wtime="15">15 min ago</button>
+            <button type="button" data-wtime="30">30 min ago</button>
+            <button type="button" data-wtime="60">1 hour ago</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" id="weight-save-btn">Save weight</button>
+      </div>
+      <div class="error" id="weight-error" role="alert"></div>
+      <div class="weight-saved hidden" id="weight-saved">Weight saved ✓</div>
+    </form>
   </section>
 
   <!-- 2. Charts (toggle between views) -->
@@ -822,10 +898,14 @@
   var SELF_GREY = "#b8b0a4";        // unrated (past)
   var SELF_GREY_LIGHT = "#d4ccbf";  // unrated (today)
   var PREP_MODES = ["Home cooked", "Fridge scraps", "Delivery", "Restaurant", "Meal Prep", "Pick-up", "Office", "Other"];
+  var WEIGHT_STORAGE_KEY = "weight-entries";
+  var PREBM_OPTIONS = ["Yes", "No"];
 
   // --- State ---
   var entries = loadEntries();
   var editingId = null; // null = creating, otherwise editing existing entry id
+  var weightEntries = loadWeightEntries();
+  var entryMode = "calories"; // "calories" | "weight"
 
   // --- Element refs ---
   var form = document.getElementById("entry-form");
@@ -859,6 +939,16 @@
   var exportTo = document.getElementById("export-to");
   var exportGo = document.getElementById("export-go");
   var exportNote = document.getElementById("export-note");
+
+  // Entry-mode toggle + weight form
+  var entryToggle = document.getElementById("entry-toggle");
+  var weightForm = document.getElementById("weight-form");
+  var weightKgEl = document.getElementById("weight-kg");
+  var prebmGroup = document.getElementById("prebm-group");
+  var weightDateEl = document.getElementById("weight-date");
+  var weightTimeEl = document.getElementById("weight-time");
+  var weightError = document.getElementById("weight-error");
+  var weightSaved = document.getElementById("weight-saved");
 
   // --- Chart view state ---
   var activeChart = "day";   // "day" | "hour"
@@ -913,6 +1003,7 @@
 
   buildSegmented(categoryGroup, "category", CATEGORIES, false);
   buildSegmented(prepGroup, "prepMode", PREP_MODES, true);
+  buildSegmented(prebmGroup, "prebm", PREBM_OPTIONS, true); // optional Yes/No
 
   // --- Self-assessment slider ---
   // Optional: starts "unrated" (grey) and only commits to a value once touched.
@@ -996,6 +1087,26 @@
     }
   }
 
+  // --- Weight persistence ---
+  // Weight entries live under their own key, separate from calorie entries.
+  // Each: { id, weightKg, preBM, date, time, timestamp }.
+  function loadWeightEntries() {
+    try {
+      var raw = localStorage.getItem(WEIGHT_STORAGE_KEY);
+      var parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveWeightEntries() {
+    try {
+      localStorage.setItem(WEIGHT_STORAGE_KEY, JSON.stringify(weightEntries));
+    } catch (e) {
+      /* storage may be unavailable; app still works in-memory */
+    }
+  }
+
   // --- Datetime helpers (local time) ---
   var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
@@ -1047,6 +1158,7 @@
   }
 
   function loadEntryIntoForm(entry) {
+    setEntryMode("calories"); // editing is a calorie-only flow
     editingId = entry.id;
     whatEl.value = entry.what;
     setSelected(categoryGroup, entry.category);
@@ -1168,6 +1280,93 @@
       timeEl.value = timeStr(d);
     });
   });
+
+  // --- Entry mode toggle (Calories / Weight) ---
+  // Swaps which input zone is visible; both live in the same card.
+  function setEntryMode(mode) {
+    entryMode = mode;
+    Array.prototype.forEach.call(entryToggle.children, function (b) {
+      b.classList.toggle("active", b.getAttribute("data-mode") === mode);
+    });
+    var isCal = mode === "calories";
+    form.classList.toggle("hidden", !isCal);
+    weightForm.classList.toggle("hidden", isCal);
+    // The editing banner only applies to the calorie form.
+    editingBanner.classList.toggle("hidden", !(isCal && editingId));
+    if (isCal) hideWeightSaved();
+    else hideSuggestions();
+  }
+  entryToggle.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-mode]");
+    if (btn) setEntryMode(btn.getAttribute("data-mode"));
+  });
+
+  // Weight quick date buttons
+  document.querySelectorAll("[data-wdate]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var d = new Date();
+      if (btn.getAttribute("data-wdate") === "yesterday") d.setDate(d.getDate() - 1);
+      weightDateEl.value = dateStr(d);
+    });
+  });
+
+  // Weight quick time buttons (minutes-ago)
+  document.querySelectorAll("[data-wtime]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var mins = parseInt(btn.getAttribute("data-wtime"), 10);
+      var d = new Date();
+      d.setMinutes(d.getMinutes() - mins);
+      weightTimeEl.value = timeStr(d);
+    });
+  });
+
+  function hideWeightSaved() { weightSaved.classList.add("hidden"); }
+
+  // Reset the weight form to a clean state with date/time = now.
+  function resetWeightForm() {
+    var now = new Date();
+    weightForm.reset();
+    weightKgEl.value = "";
+    setSelected(prebmGroup, "");
+    weightDateEl.value = dateStr(now);
+    weightTimeEl.value = timeStr(now);
+    weightError.textContent = "";
+  }
+
+  // Validate + save a weight entry.
+  weightForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    hideWeightSaved();
+    var raw = weightKgEl.value.trim().replace(",", "."); // accept "72,5"
+    var kg = Number(raw);
+    if (!raw || isNaN(kg) || kg <= 0) {
+      weightError.textContent = "Please enter a valid weight in kg.";
+      return;
+    }
+    var date = weightDateEl.value;
+    if (!date || isNaN(new Date(date + "T00:00:00").getTime())) {
+      weightError.textContent = "Please enter a valid date.";
+      return;
+    }
+    var time = weightTimeEl.value;
+    if (!/^\d{2}:\d{2}$/.test(time)) {
+      weightError.textContent = "Please enter a valid time (HH:MM).";
+      return;
+    }
+    weightError.textContent = "";
+    weightEntries.push({
+      id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
+      weightKg: kg,
+      preBM: getSelected(prebmGroup), // "Yes" | "No" | ""
+      date: date,
+      time: time,
+      timestamp: date + "T" + time + ":00"
+    });
+    saveWeightEntries();
+    resetWeightForm();
+    weightSaved.classList.remove("hidden");
+  });
+  weightKgEl.addEventListener("input", hideWeightSaved);
 
   // Entries sorted by timestamp, newest first (shared by table + CSV export).
   function sortedNewestFirst() {
@@ -1830,6 +2029,8 @@
   selectedDay = defaultDay();
   updateDayBtn();
   resetForm();
+  resetWeightForm();
+  setEntryMode("calories");
   render();
 })();
 </script>
