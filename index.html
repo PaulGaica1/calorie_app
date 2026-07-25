@@ -957,7 +957,8 @@
   var PREP_MODES = ["Home cooked", "Fridge scraps", "Delivery", "Restaurant", "Meal Prep", "Pick-up", "Office", "Other"];
   var WEIGHT_STORAGE_KEY = "weight-entries";
   var PREBM_OPTIONS = ["Yes", "No"];
-  var WEIGHT_BLUE = "#2f6fed"; // weight pill fill + reported-weight line
+  var WEIGHT_BLUE = "#2f6fed";   // weight pill (pre-BM yes/blank) + reported line
+  var WEIGHT_PURPLE = "#7a4fce"; // weight pill when pre-BM is "No"
   // 7-day moving-average chip: light red when trending up vs. the day before,
   // light green when trending down, neutral when there's nothing to compare to.
   var MA_TREND = {
@@ -1784,6 +1785,7 @@
   function weightLegend() {
     return '<div class="chart-legend">' +
       '<span><i style="background:' + WEIGHT_BLUE + '"></i>Reported weight</span>' +
+      '<span><i style="background:' + WEIGHT_PURPLE + '"></i>pre-BM: no</span>' +
       '<span><i style="background:' + MA_LINE.up + '"></i>7-day avg rising</span>' +
       '<span><i style="background:' + MA_LINE.down + '"></i>7-day avg falling</span>' +
       '</div>';
@@ -1925,7 +1927,8 @@
         var wy = baseY + WTOP + k * WROW;
         var label = fmtWeight(w.kg);
         var pillW = Math.max(30, label.length * 6.6 + 14);
-        svg += '<rect x="' + (cx - pillW / 2) + '" y="' + wy + '" width="' + pillW + '" height="' + WPILL_H + '" rx="8" ry="8" fill="' + WEIGHT_BLUE + '"><title>' + escapeHtml(label) + ' at ' + escapeHtml(w.time) + '</title></rect>';
+        var pillFill = (w.preBM === "No") ? WEIGHT_PURPLE : WEIGHT_BLUE;
+        svg += '<rect x="' + (cx - pillW / 2) + '" y="' + wy + '" width="' + pillW + '" height="' + WPILL_H + '" rx="8" ry="8" fill="' + pillFill + '"><title>' + escapeHtml(label) + ' at ' + escapeHtml(w.time) + (w.preBM ? ' · pre-BM: ' + escapeHtml(w.preBM) : '') + '</title></rect>';
         svg += '<text class="weight-pill-text" x="' + cx + '" y="' + (wy + WPILL_H / 2 + 3.7) + '">' + escapeHtml(label) + '</text>';
 
         // 7-day moving-average chip
@@ -2031,7 +2034,7 @@
         sub.push("FW: " + (fw == null ? "—" : fmtHours(fw)));
       }
       var total = meals.reduce(function (s, en) { return s + en.estimatedCalories; }, 0);
-      var weights = (weightByDate[d] || []).map(function (w) { return { kg: w.weightKg, time: w.time }; });
+      var weights = (weightByDate[d] || []).map(function (w) { return { kg: w.weightKg, time: w.time, preBM: w.preBM }; });
       // Moving-average chip + line point: compare this day's 7-day avg to the
       // previous day's. weightMean drives the reported-weight line.
       var weightMA = null, maValue = null, maTrend = null, weightMean = null;
