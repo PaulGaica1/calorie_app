@@ -371,16 +371,18 @@
   .clock-wrap { max-width: 260px; margin: 12px auto 4px; touch-action: none; }
   .clock-wrap svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
   .clock-face { fill: var(--bg-2); }
-  .clock-hand { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; pointer-events: none; }
-  .clock-hub { fill: var(--accent); pointer-events: none; }
-  .clock-num-bg, .clock-min-bg { fill: var(--accent); pointer-events: none; }
+  .clock-ring { fill: none; stroke: #cbbfa9; stroke-width: 1.3; pointer-events: none; } /* double border */
+  .clock-num-bg { fill: var(--accent); pointer-events: none; }
   .clock-num { fill: var(--text); font-family: var(--font-display); font-size: 14px; font-weight: 600; text-anchor: middle; pointer-events: none; }
   .clock-num.sel { fill: #fff; }
+  .clock-min-wedge { fill: #fffdfb; stroke: #fff; stroke-width: 2.5; cursor: pointer; transition: fill .14s; }
+  .clock-min-wedge:hover { fill: var(--accent-soft); }
+  .clock-min-wedge.sel { fill: var(--accent); }
   .clock-min { fill: var(--muted); font-family: var(--font-display); font-size: 11px; font-weight: 700; text-anchor: middle; pointer-events: none; }
   .clock-min.sel { fill: #fff; }
   .clock-ampm-half { fill: #fffdfb; stroke: var(--border); stroke-width: 1; cursor: pointer; }
   .clock-ampm-half.sel { fill: var(--accent); }
-  .clock-ampm-label { font-family: var(--font-display); font-size: 11px; font-weight: 700; text-anchor: middle; fill: var(--muted); pointer-events: none; }
+  .clock-ampm-label { font-family: var(--font-display); font-size: 14px; font-weight: 700; text-anchor: middle; fill: var(--text); pointer-events: none; }
   .clock-ampm-label.sel { fill: #fff; }
 
   /* Self-assessment slider */
@@ -1146,7 +1148,8 @@
   // app is unchanged. Collapsed by default behind an "Adjust" toggle.
   var MIN_LABELS = ["00", "15", "30", "45"]; // minute ring, clockwise from top
   function makeClockPicker(readoutEl, adjustBtn, clockEl, hiddenEl) {
-    var CX = 110, CY = 110, RH = 92, RM = 52, RC = 34; // hour ring, minute ring, centre
+    var CX = 110, CY = 110, RH = 92, RC = 34; // hour-label ring, AM/PM centre radius
+    var RMI = 36, RMO = 72, RML = 54;         // minute wedge inner/outer radius + label radius
     var h24 = 0, mm = "00";
     function id(n) { return clockEl.id + "-" + n; }
     function g(n) { return document.getElementById(id(n)); }
@@ -1157,34 +1160,37 @@
     function hourLabel(i) { return (i === 0) ? "12" : String(i + (isPM() ? 12 : 0)); }
     function fmtReadout() { var h = h24 % 12; if (h === 0) h = 12; return h + ":" + mm + " " + (isPM() ? "PM" : "AM"); }
 
-    // Build the static SVG once; update() only moves hands + toggles highlights.
+    // Annular wedge path between the inner/outer minute radii, spanning a1→a2.
+    function wedge(a1, a2) {
+      var o1 = pt(a1, RMO), o2 = pt(a2, RMO), i1 = pt(a1, RMI), i2 = pt(a2, RMI);
+      return "M" + o1.x + "," + o1.y + " A" + RMO + "," + RMO + " 0 0 1 " + o2.x + "," + o2.y +
+        " L" + i2.x + "," + i2.y + " A" + RMI + "," + RMI + " 0 0 0 " + i1.x + "," + i1.y + " Z";
+    }
+
+    // Build the static SVG once; update() only toggles highlights + hour labels.
     var s = '<svg viewBox="0 0 220 220" role="group" aria-label="Time clock">';
-    s += '<circle class="clock-face" cx="110" cy="110" r="106" />';
-    s += '<line class="clock-hand" id="' + id("handm") + '" x1="110" y1="110" x2="110" y2="110" />';
-    s += '<line class="clock-hand" id="' + id("handh") + '" x1="110" y1="110" x2="110" y2="110" />';
+    s += '<circle class="clock-face" cx="110" cy="110" r="104" />';
+    s += '<circle class="clock-ring" cx="110" cy="110" r="108" />';
+    s += '<circle class="clock-ring" cx="110" cy="110" r="104" />';
     s += '<circle class="clock-num-bg" id="' + id("hbg") + '" cx="110" cy="110" r="15" />';
-    s += '<circle class="clock-min-bg" id="' + id("mbg") + '" cx="110" cy="110" r="13" />';
     var i, p;
+    // Minute wedges (:00 top, :15 right, :30 bottom, :45 left), split by an X.
+    for (i = 0; i < 4; i++) { s += '<path class="clock-min-wedge" id="' + id("mw" + i) + '" data-min="' + i + '" d="' + wedge(i * 90 - 45, i * 90 + 45) + '" />'; }
     for (i = 0; i < 12; i++) { p = pt(i * 30, RH); s += '<text class="clock-num" id="' + id("h" + i) + '" x="' + p.x + '" y="' + (p.y + 5) + '"></text>'; }
-    for (i = 0; i < 4; i++) { p = pt(i * 90, RM); s += '<text class="clock-min" id="' + id("m" + i) + '" x="' + p.x + '" y="' + (p.y + 4) + '">' + MIN_LABELS[i] + '</text>'; }
+    for (i = 0; i < 4; i++) { p = pt(i * 90, RML); s += '<text class="clock-min" id="' + id("m" + i) + '" x="' + p.x + '" y="' + (p.y + 4) + '">' + MIN_LABELS[i] + '</text>'; }
     s += '<path class="clock-ampm-half" id="' + id("am") + '" d="M' + (CX - RC) + ',' + CY + ' A' + RC + ',' + RC + ' 0 0 1 ' + (CX + RC) + ',' + CY + ' Z" />'; // top half
     s += '<path class="clock-ampm-half" id="' + id("pm") + '" d="M' + (CX - RC) + ',' + CY + ' A' + RC + ',' + RC + ' 0 0 0 ' + (CX + RC) + ',' + CY + ' Z" />'; // bottom half
-    s += '<text class="clock-ampm-label" id="' + id("aml") + '" x="110" y="' + (CY - 8) + '">AM</text>';
-    s += '<text class="clock-ampm-label" id="' + id("pml") + '" x="110" y="' + (CY + 18) + '">PM</text>';
-    s += '<circle class="clock-hub" cx="110" cy="110" r="3" />';
+    s += '<text class="clock-ampm-label" id="' + id("aml") + '" x="110" y="' + (CY - 7) + '">AM</text>';
+    s += '<text class="clock-ampm-label" id="' + id("pml") + '" x="110" y="' + (CY + 19) + '">PM</text>';
     s += '</svg>';
     clockEl.innerHTML = s;
 
     function update() {
       var hi = hourIdx(), mi = minIdx(), pm = isPM();
-      var hp = pt(hi * 30, RH - 4), mp = pt(mi * 90, RM);
-      g("handh").setAttribute("x2", hp.x); g("handh").setAttribute("y2", hp.y);
-      g("handm").setAttribute("x2", mp.x); g("handm").setAttribute("y2", mp.y);
-      var hb = pt(hi * 30, RH), mb = pt(mi * 90, RM);
+      var hb = pt(hi * 30, RH);
       g("hbg").setAttribute("cx", hb.x); g("hbg").setAttribute("cy", hb.y);
-      g("mbg").setAttribute("cx", mb.x); g("mbg").setAttribute("cy", mb.y);
       for (var j = 0; j < 12; j++) { var t = g("h" + j); t.textContent = hourLabel(j); t.classList.toggle("sel", j === hi); }
-      for (var m2 = 0; m2 < 4; m2++) { g("m" + m2).classList.toggle("sel", m2 === mi); }
+      for (var m2 = 0; m2 < 4; m2++) { g("m" + m2).classList.toggle("sel", m2 === mi); g("mw" + m2).classList.toggle("sel", m2 === mi); }
       g("am").classList.toggle("sel", !pm); g("pm").classList.toggle("sel", pm);
       g("aml").classList.toggle("sel", !pm); g("pml").classList.toggle("sel", pm);
       readoutEl.textContent = fmtReadout();
@@ -1205,11 +1211,11 @@
     }
     clockEl.addEventListener("pointerdown", function (e) {
       var info = at(e);
-      if (info.r <= RC + 4) { // centre → AM/PM by half (top = AM, bottom = PM)
+      if (info.r <= RC + 2) { // centre → AM/PM by half (top = AM, bottom = PM)
         var wantPM = info.y > CY;
         if (wantPM !== isPM()) { h24 = (h24 + 12) % 24; update(); }
         active = null;
-      } else if (info.r <= (RM + RH) / 2) { active = "min"; pick(info); }
+      } else if (info.r <= RMO + 1) { active = "min"; pick(info); }
       else { active = "hour"; pick(info); }
       try { clockEl.setPointerCapture(e.pointerId); } catch (err) {}
       e.preventDefault();
