@@ -81,14 +81,15 @@ Weight tracking is its own self-contained feature — **never mix it into
   blank From/To = export everything. The **weight** log has its own export mirroring it,
   named `weight_furball_lol_<date>_<time>.csv` (4 cols: Weight (kg) / pre-BM / Date / Time).
 - **Brand:** name "HabiCat"; pillowy white badge + green cat-head SVG logo; Fredoka+Nunito.
-- **Time picker (both forms):** a custom control that composes a 24h `HH:MM` into a
+- **Time picker (both forms):** a custom **radial clock** composing a 24h `HH:MM` into a
   hidden input (`#time` / `#weight-time`), so downstream code is unchanged. AM/PM is
   **not stored**; times are **quarter-hour granularity** (loading snaps to the nearest
-  quarter). Layout top→bottom: quick buttons (**Now / 30 mins ago / 1h ago**) →
-  separator → hours **1→12** as circles in a 4×3 grid → separator → an **AM/PM stacked
-  pill toggle** (AM over PM) beside a **quartered clock minute dial** (`:00` top, `:15`
-  right, `:30` bottom, `:45` left; the chosen wedge lives in `dataset.min`), split by a
-  vertical divider. The weight form's copy is blue-themed.
+  quarter). **Collapsed by default** behind an *Adjust* toggle, showing a big live
+  readout (e.g. `8:15 PM`) + quick buttons (**Now / 30 mins ago / 1h ago**). Expanded:
+  **outer ring = hours**, **inner ring = minutes** (`:00/:15/:30/:45` only), **centre =
+  AM/PM halves** (top AM / bottom PM). Drag around a ring to set it (value updates live);
+  the AM/PM toggle **re-labels the hours to 24h** (AM `12,1–11` / PM `12,13–23`; `12` at
+  top = midnight/noon). The weight form's copy is blue-themed.
 - **Re-logging via the "What" autocomplete** copies a past entry's metadata (category,
   rating, prep, calories) but sets **date + time to now** — you're logging it again now,
   not reusing the old timestamp.

@@ -354,53 +354,34 @@
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
-  /* Quick time buttons + separators frame the chip picker. */
-  .time-quick { margin-top: 0; }
-  .time-sep { height: 1px; background: var(--border); margin: 14px 0; max-width: 340px; }
+  .time-quick { margin-top: 10px; }
 
-  /* Chip time picker: a tight 4×3 grid of hour circles, then a row with an
-     AM/PM stacked pill toggle beside a quartered "clock" minute dial, split by
-     a vertical divider. */
-  .time-picker { display: flex; flex-direction: column; gap: 6px; max-width: 340px; }
-  .time-hours { display: grid; grid-template-columns: repeat(4, 48px); gap: 8px; justify-content: center; }
-  .time-bottom { display: flex; align-items: center; justify-content: center; }
-  .time-vsep { align-self: stretch; width: 1px; background: var(--border); margin: 0 22px; }
-
-  /* Hours = circular chips */
-  .time-hours label {
-    width: 48px; height: 48px; padding: 0;
-    border-radius: 50%;
-    display: inline-flex; align-items: center; justify-content: center;
-    text-align: center; flex: none;
+  /* Collapsed time summary: a big live readout + an Adjust toggle that reveals
+     the radial clock (outer ring = hours, inner ring = minutes, centre AM/PM). */
+  .clock-head { display: flex; align-items: center; gap: 12px; max-width: 340px; margin-bottom: 2px; }
+  .clock-time { font-family: var(--font-display); font-size: 24px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+  .clock-adjust-btn {
+    border: 1px solid var(--border); background: #fffdfb; color: var(--muted);
+    font-family: var(--font-body); font-weight: 600; font-size: 13px;
+    padding: 6px 14px; border-radius: 999px; cursor: pointer;
+    transition: border-color .12s, color .12s, background .12s;
   }
+  .clock-adjust-btn:hover { border-color: var(--accent); color: var(--accent-d); background: var(--accent-soft); }
 
-  /* AM/PM = one stacked pill toggle (AM over PM, divider between) */
-  .time-ampm {
-    display: flex; flex-direction: column;
-    width: 64px;
-    border: 1px solid var(--border);
-    border-radius: 22px;
-    overflow: hidden;
-    background: #fffdfb;
-    box-shadow: var(--shadow-sm);
-  }
-  .time-ampm label {
-    margin: 0; border: none; border-radius: 0; box-shadow: none; background: transparent;
-    padding: 15px 0; text-align: center; font-weight: 600; color: var(--text); cursor: pointer;
-    transition: background .14s, color .14s;
-  }
-  .time-ampm label:first-of-type { border-bottom: 1px solid var(--border); }
-  .time-ampm label:hover { color: var(--accent-d); }
-  .time-ampm input:checked + label { background: var(--accent); color: #fff; transform: none; box-shadow: none; }
-
-  /* Minutes = quartered clock dial */
-  .time-mins { width: 104px; height: 104px; }
-  .time-mins svg { display: block; width: 100%; height: 100%; }
-  .min-wedge { fill: #fffdfb; stroke: #fff; stroke-width: 2.5; cursor: pointer; transition: fill .14s; }
-  .min-wedge:hover { fill: var(--accent-soft); }
-  .min-wedge.selected { fill: var(--accent); }
-  .min-label { fill: var(--muted); font-family: var(--font-display); font-size: 13px; font-weight: 600; text-anchor: middle; pointer-events: none; }
-  .min-label.selected { fill: #fff; }
+  .clock-wrap { max-width: 260px; margin: 12px auto 4px; touch-action: none; }
+  .clock-wrap svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
+  .clock-face { fill: var(--bg-2); }
+  .clock-hand { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; pointer-events: none; }
+  .clock-hub { fill: var(--accent); pointer-events: none; }
+  .clock-num-bg, .clock-min-bg { fill: var(--accent); pointer-events: none; }
+  .clock-num { fill: var(--text); font-family: var(--font-display); font-size: 14px; font-weight: 600; text-anchor: middle; pointer-events: none; }
+  .clock-num.sel { fill: #fff; }
+  .clock-min { fill: var(--muted); font-family: var(--font-display); font-size: 11px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+  .clock-min.sel { fill: #fff; }
+  .clock-ampm-half { fill: #fffdfb; stroke: var(--border); stroke-width: 1; cursor: pointer; }
+  .clock-ampm-half.sel { fill: var(--accent); }
+  .clock-ampm-label { font-family: var(--font-display); font-size: 11px; font-weight: 700; text-anchor: middle; fill: var(--muted); pointer-events: none; }
+  .clock-ampm-label.sel { fill: #fff; }
 
   /* Self-assessment slider */
   .slider-field { --self-color: var(--self-grey, #b8b0a4); }
@@ -870,21 +851,16 @@
 
       <div class="field">
         <label>Time</label>
+        <div class="clock-head">
+          <span class="clock-time" id="time-readout">—</span>
+          <button type="button" class="clock-adjust-btn" id="time-adjust" aria-expanded="false">Adjust</button>
+        </div>
         <div class="quick time-quick">
           <button type="button" data-time="0">Now</button>
           <button type="button" data-time="30">30 mins ago</button>
           <button type="button" data-time="60">1h ago</button>
         </div>
-        <div class="time-sep"></div>
-        <div class="time-picker">
-          <div class="segmented time-hours" id="time-hours"></div>
-          <div class="time-sep"></div>
-          <div class="time-bottom">
-            <div class="segmented time-ampm" id="time-ampm"></div>
-            <div class="time-vsep"></div>
-            <div class="segmented time-mins" id="time-mins"></div>
-          </div>
-        </div>
+        <div class="clock-wrap hidden" id="time-clock"></div>
         <input type="hidden" id="time" />
       </div>
 
@@ -924,21 +900,16 @@
 
       <div class="field">
         <label>Time</label>
+        <div class="clock-head">
+          <span class="clock-time" id="weight-time-readout">—</span>
+          <button type="button" class="clock-adjust-btn" id="weight-time-adjust" aria-expanded="false">Adjust</button>
+        </div>
         <div class="quick time-quick">
           <button type="button" data-wtime="0">Now</button>
           <button type="button" data-wtime="30">30 mins ago</button>
           <button type="button" data-wtime="60">1h ago</button>
         </div>
-        <div class="time-sep"></div>
-        <div class="time-picker">
-          <div class="segmented time-hours" id="weight-time-hours"></div>
-          <div class="time-sep"></div>
-          <div class="time-bottom">
-            <div class="segmented time-ampm" id="weight-time-ampm"></div>
-            <div class="time-vsep"></div>
-            <div class="segmented time-mins" id="weight-time-mins"></div>
-          </div>
-        </div>
+        <div class="clock-wrap hidden" id="weight-time-clock"></div>
         <input type="hidden" id="weight-time" />
       </div>
 
@@ -1101,13 +1072,13 @@
   var weightExportNote = document.getElementById("weight-export-note");
   var weightTableFilterEl = document.getElementById("weight-table-filter");
 
-  // Chip time-picker containers (calorie + weight forms)
-  var timeHours = document.getElementById("time-hours");
-  var timeAmpm = document.getElementById("time-ampm");
-  var timeMins = document.getElementById("time-mins");
-  var wTimeHours = document.getElementById("weight-time-hours");
-  var wTimeAmpm = document.getElementById("weight-time-ampm");
-  var wTimeMins = document.getElementById("weight-time-mins");
+  // Radial clock time-picker elements (calorie + weight forms)
+  var timeReadout = document.getElementById("time-readout");
+  var timeAdjust = document.getElementById("time-adjust");
+  var timeClock = document.getElementById("time-clock");
+  var wTimeReadout = document.getElementById("weight-time-readout");
+  var wTimeAdjust = document.getElementById("weight-time-adjust");
+  var wTimeClock = document.getElementById("weight-time-clock");
 
   // --- Chart view state ---
   var activeChart = "day";   // "day" | "hour"
@@ -1167,73 +1138,103 @@
   buildSegmented(prepGroup, "prepMode", PREP_MODES, true);
   buildSegmented(prebmGroup, "prebm", PREBM_OPTIONS, true); // optional Yes/No
 
-  // --- Chip time picker ---
-  // Hours (1-12 circles) · AM/PM (stacked pill) · quarter-hours (quartered clock
-  // dial) compose a 24h "HH:MM" value written into a hidden input, so the rest of
-  // the app is unchanged (2pm :00 -> "14:00"). Returns { set } to load a time.
-  var HOUR_OPTS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+  // --- Radial clock time picker ---
+  // A single analog dial: outer ring = hours, inner ring = minutes (quarter-hours
+  // only), centre = AM/PM halves. Drag around a ring to set it; the value shows
+  // live. AM/PM re-labels the hours to 24h (AM 1–11, PM 13–23; 12 at top for
+  // midnight/noon). Composes a 24h "HH:MM" into a hidden input so the rest of the
+  // app is unchanged. Collapsed by default behind an "Adjust" toggle.
+  var MIN_LABELS = ["00", "15", "30", "45"]; // minute ring, clockwise from top
+  function makeClockPicker(readoutEl, adjustBtn, clockEl, hiddenEl) {
+    var CX = 110, CY = 110, RH = 92, RM = 52, RC = 34; // hour ring, minute ring, centre
+    var h24 = 0, mm = "00";
+    function id(n) { return clockEl.id + "-" + n; }
+    function g(n) { return document.getElementById(id(n)); }
+    function pt(a, r) { var rad = a * Math.PI / 180; return { x: CX + r * Math.sin(rad), y: CY - r * Math.cos(rad) }; }
+    function isPM() { return h24 >= 12; }
+    function hourIdx() { return h24 % 12; }
+    function minIdx() { return MIN_LABELS.indexOf(mm); }
+    function hourLabel(i) { return (i === 0) ? "12" : String(i + (isPM() ? 12 : 0)); }
+    function fmtReadout() { var h = h24 % 12; if (h === 0) h = 12; return h + ":" + mm + " " + (isPM() ? "PM" : "AM"); }
 
-  // Quartered "clock" minute dial: :00 top · :15 right · :30 bottom · :45 left.
-  // The chosen minute lives in container.dataset.min; container.__selectMin(mm)
-  // updates it programmatically. Clicking a wedge selects it and fires onChange.
-  function buildMinuteClock(container, onChange) {
-    var C = 50, R = 48, k = 33.94; // k = R·sin45° = the diagonal wedge boundary
-    var arc = " A" + R + "," + R + " 0 0 1 ";
-    var wedges = [
-      { min: "00", d: "M50,50 L" + (C - k) + "," + (C - k) + arc + (C + k) + "," + (C - k) + " Z", lx: C,      ly: C - 24 },
-      { min: "15", d: "M50,50 L" + (C + k) + "," + (C - k) + arc + (C + k) + "," + (C + k) + " Z", lx: C + 26, ly: C + 4 },
-      { min: "30", d: "M50,50 L" + (C + k) + "," + (C + k) + arc + (C - k) + "," + (C + k) + " Z", lx: C,      ly: C + 30 },
-      { min: "45", d: "M50,50 L" + (C - k) + "," + (C + k) + arc + (C - k) + "," + (C - k) + " Z", lx: C - 26, ly: C + 4 }
-    ];
-    var svg = '<svg viewBox="0 0 100 100" role="group" aria-label="Minutes">';
-    wedges.forEach(function (w) { svg += '<path class="min-wedge" data-min="' + w.min + '" d="' + w.d + '"><title>:' + w.min + '</title></path>'; });
-    svg += '<circle cx="50" cy="50" r="48" fill="none" stroke="var(--border)" stroke-width="1.5" pointer-events="none" />';
-    wedges.forEach(function (w) { svg += '<text class="min-label" data-min="' + w.min + '" x="' + w.lx + '" y="' + w.ly + '">:' + w.min + '</text>'; });
-    svg += '</svg>';
-    container.innerHTML = svg;
-    function select(mm) {
-      container.dataset.min = mm;
-      container.querySelectorAll("[data-min]").forEach(function (el) {
-        el.classList.toggle("selected", el.getAttribute("data-min") === mm);
-      });
-      if (onChange) onChange();
-    }
-    container.addEventListener("click", function (e) {
-      var el = e.target.closest("[data-min]");
-      if (el) select(el.getAttribute("data-min"));
-    });
-    container.__selectMin = select;
-  }
+    // Build the static SVG once; update() only moves hands + toggles highlights.
+    var s = '<svg viewBox="0 0 220 220" role="group" aria-label="Time clock">';
+    s += '<circle class="clock-face" cx="110" cy="110" r="106" />';
+    s += '<line class="clock-hand" id="' + id("handm") + '" x1="110" y1="110" x2="110" y2="110" />';
+    s += '<line class="clock-hand" id="' + id("handh") + '" x1="110" y1="110" x2="110" y2="110" />';
+    s += '<circle class="clock-num-bg" id="' + id("hbg") + '" cx="110" cy="110" r="15" />';
+    s += '<circle class="clock-min-bg" id="' + id("mbg") + '" cx="110" cy="110" r="13" />';
+    var i, p;
+    for (i = 0; i < 12; i++) { p = pt(i * 30, RH); s += '<text class="clock-num" id="' + id("h" + i) + '" x="' + p.x + '" y="' + (p.y + 5) + '"></text>'; }
+    for (i = 0; i < 4; i++) { p = pt(i * 90, RM); s += '<text class="clock-min" id="' + id("m" + i) + '" x="' + p.x + '" y="' + (p.y + 4) + '">' + MIN_LABELS[i] + '</text>'; }
+    s += '<path class="clock-ampm-half" id="' + id("am") + '" d="M' + (CX - RC) + ',' + CY + ' A' + RC + ',' + RC + ' 0 0 1 ' + (CX + RC) + ',' + CY + ' Z" />'; // top half
+    s += '<path class="clock-ampm-half" id="' + id("pm") + '" d="M' + (CX - RC) + ',' + CY + ' A' + RC + ',' + RC + ' 0 0 0 ' + (CX + RC) + ',' + CY + ' Z" />'; // bottom half
+    s += '<text class="clock-ampm-label" id="' + id("aml") + '" x="110" y="' + (CY - 8) + '">AM</text>';
+    s += '<text class="clock-ampm-label" id="' + id("pml") + '" x="110" y="' + (CY + 18) + '">PM</text>';
+    s += '<circle class="clock-hub" cx="110" cy="110" r="3" />';
+    s += '</svg>';
+    clockEl.innerHTML = s;
 
-  function makeTimePicker(hoursEl, ampmEl, minsEl, hiddenEl) {
-    buildSegmented(hoursEl, hoursEl.id, HOUR_OPTS, false);
-    buildSegmented(ampmEl, ampmEl.id, ["AM", "PM"], false);
-    function compose() {
-      var h12 = +getSelected(hoursEl), ap = getSelected(ampmEl), mm = minsEl.dataset.min;
-      if (!h12 || !ap || !mm) return; // incomplete selection; keep last value
-      var h24 = (ap === "PM") ? (h12 % 12) + 12 : (h12 % 12);
+    function update() {
+      var hi = hourIdx(), mi = minIdx(), pm = isPM();
+      var hp = pt(hi * 30, RH - 4), mp = pt(mi * 90, RM);
+      g("handh").setAttribute("x2", hp.x); g("handh").setAttribute("y2", hp.y);
+      g("handm").setAttribute("x2", mp.x); g("handm").setAttribute("y2", mp.y);
+      var hb = pt(hi * 30, RH), mb = pt(mi * 90, RM);
+      g("hbg").setAttribute("cx", hb.x); g("hbg").setAttribute("cy", hb.y);
+      g("mbg").setAttribute("cx", mb.x); g("mbg").setAttribute("cy", mb.y);
+      for (var j = 0; j < 12; j++) { var t = g("h" + j); t.textContent = hourLabel(j); t.classList.toggle("sel", j === hi); }
+      for (var m2 = 0; m2 < 4; m2++) { g("m" + m2).classList.toggle("sel", m2 === mi); }
+      g("am").classList.toggle("sel", !pm); g("pm").classList.toggle("sel", pm);
+      g("aml").classList.toggle("sel", !pm); g("pml").classList.toggle("sel", pm);
+      readoutEl.textContent = fmtReadout();
       hiddenEl.value = pad(h24) + ":" + mm;
     }
-    buildMinuteClock(minsEl, compose);
-    [hoursEl, ampmEl].forEach(function (g) { g.addEventListener("change", compose); });
+
+    // Pointer geometry → which ring + angle.
+    function at(e) {
+      var r = clockEl.getBoundingClientRect();
+      var x = (e.clientX - r.left) / r.width * 220, y = (e.clientY - r.top) / r.height * 220;
+      var dx = x - CX, dy = y - CY;
+      return { r: Math.hypot(dx, dy), a: ((Math.atan2(dx, -dy) * 180 / Math.PI) % 360 + 360) % 360, y: y };
+    }
+    var active = null;
+    function pick(info) {
+      if (active === "hour") { h24 = (Math.round(info.a / 30) % 12) + (isPM() ? 12 : 0); update(); }
+      else if (active === "min") { mm = MIN_LABELS[Math.round(info.a / 90) % 4]; update(); }
+    }
+    clockEl.addEventListener("pointerdown", function (e) {
+      var info = at(e);
+      if (info.r <= RC + 4) { // centre → AM/PM by half (top = AM, bottom = PM)
+        var wantPM = info.y > CY;
+        if (wantPM !== isPM()) { h24 = (h24 + 12) % 24; update(); }
+        active = null;
+      } else if (info.r <= (RM + RH) / 2) { active = "min"; pick(info); }
+      else { active = "hour"; pick(info); }
+      try { clockEl.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault();
+    });
+    clockEl.addEventListener("pointermove", function (e) { if (active) { pick(at(e)); e.preventDefault(); } });
+    clockEl.addEventListener("pointerup", function () { active = null; });
+    clockEl.addEventListener("pointercancel", function () { active = null; });
+
+    adjustBtn.addEventListener("click", function () {
+      var open = clockEl.classList.toggle("hidden") === false;
+      adjustBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+
     function set(hhmm) {
       var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || "");
-      var h24, mins;
-      if (m) { h24 = +m[1]; mins = +m[2]; } else { var n = new Date(); h24 = n.getHours(); mins = n.getMinutes(); }
-      // The picker only represents quarter-hours; snap to the nearest one.
-      var qm = Math.round(mins / 15) * 15, carry = 0;
-      if (qm === 60) { qm = 0; carry = 1; }
-      h24 = (h24 + carry) % 24;
-      var ap = h24 >= 12 ? "PM" : "AM";
-      var h12 = h24 % 12; if (h12 === 0) h12 = 12;
-      setSelected(hoursEl, String(h12));
-      setSelected(ampmEl, ap);
-      minsEl.__selectMin(pad(qm)); // updates the dial + triggers compose
+      var H, M;
+      if (m) { H = +m[1]; M = +m[2]; } else { var n = new Date(); H = n.getHours(); M = n.getMinutes(); }
+      var q = Math.round(M / 15) * 15; if (q === 60) { q = 0; H = (H + 1) % 24; }
+      h24 = H % 24; mm = pad(q);
+      update();
     }
     return { set: set };
   }
-  var calorieTime = makeTimePicker(timeHours, timeAmpm, timeMins, timeEl);
-  var weightTime = makeTimePicker(wTimeHours, wTimeAmpm, wTimeMins, weightTimeEl);
+  var calorieTime = makeClockPicker(timeReadout, timeAdjust, timeClock, timeEl);
+  var weightTime = makeClockPicker(wTimeReadout, wTimeAdjust, wTimeClock, weightTimeEl);
 
   // --- Self-assessment slider ---
   // Optional: starts "unrated" (grey) and only commits to a value once touched.
