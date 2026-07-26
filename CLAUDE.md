@@ -75,17 +75,31 @@ Weight tracking is its own self-contained feature — **never mix it into
   same-rating meals); **today** = lighter tones + no outline, **past** = base tones +
   outline; time-of-day view uses fixed **parts-of-day buckets** (Morning/Midday/Afternoon/
   Evening/Night); a dotted line marks **avg daily calories** over the last ≤10 logged days.
+  The per-day chart **defaults to the most recent day** (scrolls horizontally, slide left
+  for history) and keeps the **y-axis + legend pinned** while the bars scroll.
 - **CSV export** keeps the `data_furball_lol_<date>_<time>.csv` name and 7-column layout;
   blank From/To = export everything. The **weight** log has its own export mirroring it,
   named `weight_furball_lol_<date>_<time>.csv` (4 cols: Weight (kg) / pre-BM / Date / Time).
 - **Brand:** name "HabiCat"; pillowy white badge + green cat-head SVG logo; Fredoka+Nunito.
+- **Time picker (both forms):** a custom control that composes a 24h `HH:MM` into a
+  hidden input (`#time` / `#weight-time`), so downstream code is unchanged. AM/PM is
+  **not stored**; times are **quarter-hour granularity** (loading snaps to the nearest
+  quarter). Layout top→bottom: quick buttons (**Now / 30 mins ago / 1h ago**) →
+  separator → hours **1→12** as circles in a 4×3 grid → separator → an **AM/PM stacked
+  pill toggle** (AM over PM) beside a **quartered clock minute dial** (`:00` top, `:15`
+  right, `:30` bottom, `:45` left; the chosen wedge lives in `dataset.min`), split by a
+  vertical divider. The weight form's copy is blue-themed.
+- **Re-logging via the "What" autocomplete** copies a past entry's metadata (category,
+  rating, prep, calories) but sets **date + time to now** — you're logging it again now,
+  not reusing the old timestamp.
+- **No zoom / always fit to screen:** viewport meta uses `maximum-scale=1,
+  user-scalable=no`; `html` has `touch-action: manipulation` + `text-size-adjust: 100%`;
+  iOS Safari pinch is blocked via `gesturestart/change/end` handlers. Deliberate, despite
+  the accessibility trade-off. Date inputs are capped (~210px), not full width.
 
 ### Weight feature semantics (do NOT reverse)
 - **Blue accent** for everything weight (vs. green for calories); the weight input
-  card remaps `--accent*` to the blue set.
-- **Time entry is a chip picker** (both forms): hours 1–12 (4×3 grid) · AM/PM ·
-  quarter-hours (:00/:15/:30/:45) → composes a 24h `HH:MM`. AM/PM is **not stored**;
-  times are **quarter-hour granularity** (loading snaps to the nearest quarter).
+  card remaps `--accent*` to the blue set (including the time picker below).
 - **Per-day chart = two stacked, scroll-synced blocks**: Calories (full height) on
   top, Weight (squished, `plotH` ~90) below. Both always show when they have data —
   **no mode toggle**. Section headers appear only when both blocks are present.
