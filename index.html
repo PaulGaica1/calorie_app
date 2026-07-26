@@ -354,13 +354,27 @@
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
-  /* Chip-based time picker: hours (3-col grid) · AM/PM · quarter-hours.
-     Reuses the .segmented chip look; only the per-section layout differs. */
-  .time-picker { display: flex; flex-direction: column; gap: 12px; max-width: 340px; }
-  .time-hours { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
-  .time-ampm, .time-mins { display: flex; gap: 7px; }
-  .time-hours label, .time-ampm label, .time-mins label { text-align: center; }
-  .time-ampm label, .time-mins label { flex: 1; padding-left: 8px; padding-right: 8px; }
+  /* Quick time buttons + separator sit above the chip picker. */
+  .time-quick { margin-top: 0; }
+  .time-sep { height: 1px; background: var(--border); margin: 14px 0 16px; max-width: 340px; }
+
+  /* Chip-based time picker: hours (4×3 grid) · AM/PM · quarter-hours, all as
+     circular chips. Reuses the .segmented look; layout + shape differ. */
+  .time-picker { display: flex; flex-direction: column; gap: 10px; max-width: 340px; }
+  .time-hours { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; justify-items: center; }
+  .time-ampm { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; justify-items: center; }
+  .time-mins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; justify-items: center; }
+  .time-picker label {
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    flex: none;
+  }
 
   /* Self-assessment slider */
   .slider-field { --self-color: var(--self-grey, #b8b0a4); }
@@ -830,6 +844,12 @@
 
       <div class="field">
         <label>Time</label>
+        <div class="quick time-quick">
+          <button type="button" data-time="0">Now</button>
+          <button type="button" data-time="30">30 mins ago</button>
+          <button type="button" data-time="60">1h ago</button>
+        </div>
+        <div class="time-sep"></div>
         <div class="time-picker">
           <div class="segmented time-hours" id="time-hours"></div>
           <div class="segmented time-ampm" id="time-ampm"></div>
@@ -874,6 +894,12 @@
 
       <div class="field">
         <label>Time</label>
+        <div class="quick time-quick">
+          <button type="button" data-wtime="0">Now</button>
+          <button type="button" data-wtime="30">30 mins ago</button>
+          <button type="button" data-wtime="60">1h ago</button>
+        </div>
+        <div class="time-sep"></div>
         <div class="time-picker">
           <div class="segmented time-hours" id="weight-time-hours"></div>
           <div class="segmented time-ampm" id="weight-time-ampm"></div>
@@ -1411,6 +1437,15 @@
     });
   });
 
+  // Quick time buttons (Now / 30 mins ago / 1h ago) drive the chip picker.
+  form.querySelectorAll("[data-time]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var d = new Date();
+      d.setMinutes(d.getMinutes() - parseInt(btn.getAttribute("data-time"), 10));
+      calorieTime.set(timeStr(d));
+    });
+  });
+
   // --- Entry mode toggle (Calories / Weight) ---
   // Swaps which input zone is visible; both live in the same card.
   function setEntryMode(mode) {
@@ -1438,6 +1473,15 @@
       var d = new Date();
       if (btn.getAttribute("data-wdate") === "yesterday") d.setDate(d.getDate() - 1);
       weightDateEl.value = dateStr(d);
+    });
+  });
+
+  // Weight quick time buttons (Now / 30 mins ago / 1h ago)
+  weightForm.querySelectorAll("[data-wtime]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var d = new Date();
+      d.setMinutes(d.getMinutes() - parseInt(btn.getAttribute("data-wtime"), 10));
+      weightTime.set(timeStr(d));
     });
   });
 
@@ -1577,15 +1621,17 @@
     whatEl.setAttribute("aria-expanded", "true");
   }
 
-  // Copy a past entry's metadata + time into the form; date stays today.
+  // Copy a past entry's metadata into the form. Date + time default to *now*
+  // (you're logging it again now, not re-using the old timestamp).
   function applySuggestion(rec) {
     whatEl.value = rec.what;
     setSelected(categoryGroup, rec.category);
     setSelfAssessment(rec.selfAssessment || "");
     setSelected(prepGroup, rec.prepMode || "");
     caloriesEl.value = rec.estimatedCalories;
-    calorieTime.set(rec.time);
-    dateEl.value = dateStr(new Date()); // keep the current day
+    var now = new Date();
+    calorieTime.set(timeStr(now));
+    dateEl.value = dateStr(now); // keep the current day
     hideSuggestions();
     caloriesEl.focus();
   }
