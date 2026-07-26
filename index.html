@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>HabiCat</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,6 +33,14 @@
   }
 
   * { box-sizing: border-box; }
+
+  /* Keep the UI locked to the viewport: no text auto-inflation, no double-tap
+     zoom (pinch zoom is blocked via the viewport meta + gesture handlers). */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
 
   body {
     margin: 0;
@@ -269,6 +277,9 @@
     color: var(--text);
     transition: border-color .12s, box-shadow .12s;
   }
+
+  /* Date fields only need room for the value — don't stretch full width. */
+  #date, #weight-date { width: 210px; max-width: 100%; }
 
   input:focus {
     outline: none;
@@ -2434,6 +2445,13 @@
       });
     });
   }
+
+  // Block pinch-zoom on iOS Safari (which ignores user-scalable=no) so the UI
+  // always stays fit to the screen. Double-tap zoom is handled by the CSS
+  // `touch-action: manipulation`; single taps and scrolling are unaffected.
+  ["gesturestart", "gesturechange", "gestureend"].forEach(function (ev) {
+    document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+  });
 
   // --- Init ---
   saveEntries(); // persist any one-time migration from loadEntries()
