@@ -54,6 +54,15 @@ Each entry in `localStorage`:
 - `selfAssessment` (optional ordinal): "" (Not rated) | Nasty | Okay | Healthy-ish | Healthy.
 - `prepMode` (optional): Home cooked | Fridge scraps | Delivery | Restaurant | Meal Prep | Pick-up | Office | Other.
 
+### Weight entries (separate feature, separate store)
+Weight tracking is its own self-contained feature — **never mix it into
+`calorie-entries`**. Stored under `localStorage` key `weight-entries`:
+```
+{ id, weightKg, preBM, date, time, timestamp }
+```
+- `weightKg` (number, kg). `preBM` (optional): "Yes" | "No" | "".
+- `date`/`time`/`timestamp` same conventions as calorie entries.
+
 ## Decisions we must NOT reverse
 - **Single file, zero build, no dependencies, no backend.** Keep everything in `index.html`;
   data stays in `localStorage`.
@@ -67,8 +76,27 @@ Each entry in `localStorage`:
   outline; time-of-day view uses fixed **parts-of-day buckets** (Morning/Midday/Afternoon/
   Evening/Night); a dotted line marks **avg daily calories** over the last ≤10 logged days.
 - **CSV export** keeps the `data_furball_lol_<date>_<time>.csv` name and 7-column layout;
-  blank From/To = export everything.
+  blank From/To = export everything. The **weight** log has its own export mirroring it,
+  named `weight_furball_lol_<date>_<time>.csv` (4 cols: Weight (kg) / pre-BM / Date / Time).
 - **Brand:** name "HabiCat"; pillowy white badge + green cat-head SVG logo; Fredoka+Nunito.
+
+### Weight feature semantics (do NOT reverse)
+- **Blue accent** for everything weight (vs. green for calories); the weight input
+  card remaps `--accent*` to the blue set.
+- **Time entry is a chip picker** (both forms): hours 1–12 (4×3 grid) · AM/PM ·
+  quarter-hours (:00/:15/:30/:45) → composes a 24h `HH:MM`. AM/PM is **not stored**;
+  times are **quarter-hour granularity** (loading snaps to the nearest quarter).
+- **Per-day chart = two stacked, scroll-synced blocks**: Calories (full height) on
+  top, Weight (squished, `plotH` ~90) below. Both always show when they have data —
+  **no mode toggle**. Section headers appear only when both blocks are present.
+- **Weight chart uses a fixed ±2 kg vertical window** (widens only past a 4 kg span)
+  and has **no axis labels**.
+- **Weight colour language:** reported-weight **line = blue**; per-day weight **pills**
+  = blue (pre-BM Yes/blank) or **purple** (pre-BM No); **7-day moving average** =
+  light-red rising / light-green falling (chips + chart) and stronger red/green line
+  segments. Moving average **ignores blank days**; MA chip label reads e.g. `72.3 kg`.
+- **Weight log table** mirrors the entries table (newest-first, 5/page, edit/delete,
+  shared day-filter). Editing a weight loads it into the weight form (Update/Cancel).
 
 ## Conventions & rules
 - **Match the existing style:** ES5-flavoured vanilla JS (`var`, function declarations),
