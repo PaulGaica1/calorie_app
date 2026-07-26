@@ -354,19 +354,21 @@
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
-  /* Quick time buttons + separator sit above the chip picker. */
+  /* Quick time buttons + separators frame the chip picker. */
   .time-quick { margin-top: 0; }
-  .time-sep { height: 1px; background: var(--border); margin: 14px 0 16px; max-width: 340px; }
+  .time-sep { height: 1px; background: var(--border); margin: 14px 0; max-width: 340px; }
 
-  /* Chip-based time picker: hours (4×3 grid) · AM/PM · quarter-hours, all as
-     circular chips. Reuses the .segmented look; layout + shape differ. */
-  .time-picker { display: flex; flex-direction: column; gap: 10px; max-width: 340px; }
-  .time-hours { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; justify-items: center; }
-  .time-ampm { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; justify-items: center; }
-  .time-mins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; justify-items: center; }
+  /* Chip time picker: a tight 4×3 grid of hour circles, then a row with AM/PM
+     stacked beside the quarter-hours (2×2), split by a vertical divider. */
+  .time-picker { display: flex; flex-direction: column; gap: 6px; max-width: 340px; }
+  .time-hours { display: grid; grid-template-columns: repeat(4, 48px); gap: 8px; justify-content: center; }
+  .time-bottom { display: flex; align-items: center; justify-content: center; }
+  .time-vsep { align-self: stretch; width: 1px; background: var(--border); margin: 0 20px; }
+  .time-ampm { display: grid; grid-template-columns: 48px; gap: 8px; }
+  .time-mins { display: grid; grid-template-columns: repeat(2, 48px); gap: 8px; }
   .time-picker label {
-    width: 52px;
-    height: 52px;
+    width: 48px;
+    height: 48px;
     padding: 0;
     border-radius: 50%;
     display: inline-flex;
@@ -852,8 +854,12 @@
         <div class="time-sep"></div>
         <div class="time-picker">
           <div class="segmented time-hours" id="time-hours"></div>
-          <div class="segmented time-ampm" id="time-ampm"></div>
-          <div class="segmented time-mins" id="time-mins"></div>
+          <div class="time-sep"></div>
+          <div class="time-bottom">
+            <div class="segmented time-ampm" id="time-ampm"></div>
+            <div class="time-vsep"></div>
+            <div class="segmented time-mins" id="time-mins"></div>
+          </div>
         </div>
         <input type="hidden" id="time" />
       </div>
@@ -902,8 +908,12 @@
         <div class="time-sep"></div>
         <div class="time-picker">
           <div class="segmented time-hours" id="weight-time-hours"></div>
-          <div class="segmented time-ampm" id="weight-time-ampm"></div>
-          <div class="segmented time-mins" id="weight-time-mins"></div>
+          <div class="time-sep"></div>
+          <div class="time-bottom">
+            <div class="segmented time-ampm" id="weight-time-ampm"></div>
+            <div class="time-vsep"></div>
+            <div class="segmented time-mins" id="weight-time-mins"></div>
+          </div>
         </div>
         <input type="hidden" id="weight-time" />
       </div>
@@ -1137,7 +1147,7 @@
   // Three chip sections (hour 1-12 · AM/PM · quarter-hour) compose a 24h
   // "HH:MM" value written into a hidden input, so the rest of the app is
   // unchanged (2pm :00 -> "14:00"). Returns { set } to load an existing time.
-  var HOUR_OPTS = ["12", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"];
+  var HOUR_OPTS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
   var MIN_OPTS = [{ value: "00", label: ":00" }, { value: "15", label: ":15" }, { value: "30", label: ":30" }, { value: "45", label: ":45" }];
   function makeTimePicker(hoursEl, ampmEl, minsEl, hiddenEl) {
     buildSegmented(hoursEl, hoursEl.id, HOUR_OPTS, false);
