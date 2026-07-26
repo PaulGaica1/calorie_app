@@ -356,17 +356,20 @@
 
   .time-quick { margin-top: 10px; }
 
-  /* Collapsed time summary: a big live readout + an Adjust toggle that reveals
-     the radial clock (outer ring = hours, inner ring = minutes, centre AM/PM). */
-  .clock-head { display: flex; align-items: center; gap: 12px; max-width: 340px; margin-bottom: 2px; }
-  .clock-time { font-family: var(--font-display); font-size: 24px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
-  .clock-adjust-btn {
-    border: 1px solid var(--border); background: #fffdfb; color: var(--muted);
-    font-family: var(--font-body); font-weight: 600; font-size: 13px;
-    padding: 6px 14px; border-radius: 999px; cursor: pointer;
-    transition: border-color .12s, color .12s, background .12s;
+  /* The time readout IS the toggle: a light-gray rounded box that turns green
+     with white text when open, revealing the radial clock below it. */
+  .clock-head { margin-bottom: 2px; }
+  .clock-toggle {
+    display: inline-flex; align-items: center;
+    background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: 14px; padding: 9px 18px; cursor: pointer;
+    font-family: var(--font-display); font-size: 22px; font-weight: 600;
+    color: var(--text); font-variant-numeric: tabular-nums;
+    transition: background .14s, color .14s, border-color .14s;
   }
-  .clock-adjust-btn:hover { border-color: var(--accent); color: var(--accent-d); background: var(--accent-soft); }
+  .clock-toggle:hover { border-color: var(--accent); }
+  .clock-toggle[aria-expanded="true"] { background: var(--accent); border-color: var(--accent-d); color: #fff; }
+  .clock-toggle[aria-expanded="true"]:hover { background: var(--accent-d); }
 
   .clock-wrap { max-width: 260px; margin: 12px auto 4px; touch-action: none; }
   .clock-wrap svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
@@ -854,8 +857,9 @@
       <div class="field">
         <label>Time</label>
         <div class="clock-head">
-          <span class="clock-time" id="time-readout">—</span>
-          <button type="button" class="clock-adjust-btn" id="time-adjust" aria-expanded="false">Adjust</button>
+          <button type="button" class="clock-toggle" id="time-adjust" aria-expanded="false">
+            <span id="time-readout">—</span>
+          </button>
         </div>
         <div class="quick time-quick">
           <button type="button" data-time="0">Now</button>
@@ -903,8 +907,9 @@
       <div class="field">
         <label>Time</label>
         <div class="clock-head">
-          <span class="clock-time" id="weight-time-readout">—</span>
-          <button type="button" class="clock-adjust-btn" id="weight-time-adjust" aria-expanded="false">Adjust</button>
+          <button type="button" class="clock-toggle" id="weight-time-adjust" aria-expanded="false">
+            <span id="weight-time-readout">—</span>
+          </button>
         </div>
         <div class="quick time-quick">
           <button type="button" data-wtime="0">Now</button>

@@ -84,8 +84,9 @@ Weight tracking is its own self-contained feature — **never mix it into
 - **Time picker (both forms):** a custom **radial clock** composing a 24h `HH:MM` into a
   hidden input (`#time` / `#weight-time`), so downstream code is unchanged. AM/PM is
   **not stored**; times are **quarter-hour granularity** (loading snaps to the nearest
-  quarter). **Collapsed by default** behind an *Adjust* toggle, showing a big live
-  readout (e.g. `8:15 PM`) + quick buttons (**Now / 30 mins ago / 1h ago**). Expanded:
+  quarter). **Collapsed by default**: the big live readout (e.g. `8:15 PM`) **is** the
+  toggle — a light-gray rounded box that turns **green with white text when open** —
+  above the quick buttons (**Now / 30 mins ago / 1h ago**). Expanded:
   **outer ring = hours**, **inner ring = minutes** (`:00/:15/:30/:45` only), **centre =
   AM/PM halves** (top AM / bottom PM). Drag around a ring to set it (value updates live);
   the AM/PM toggle **re-labels the hours to 24h** (AM `12,1–11` / PM `12,13–23`; `12` at
