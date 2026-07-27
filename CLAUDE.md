@@ -3,7 +3,7 @@
 Guidance for working on this repo. Read this first.
 
 ## What this is
-- **HabiCat** — a deliberately minimal personal calorie/meal tracker. The user logs
+- **Habitrack** — a deliberately minimal personal calorie/meal tracker. The user logs
   food & drink (what, calories, time, a healthiness rating) and sees it charted + tabulated.
 - **For:** one individual tracking their own intake — single-user, no accounts, no sharing.
 - Emphasis is on *patterns*: calories per day, calories by part of day, meal healthiness,
@@ -80,7 +80,9 @@ Weight tracking is its own self-contained feature — **never mix it into
 - **CSV export** keeps the `data_furball_lol_<date>_<time>.csv` name and 7-column layout;
   blank From/To = export everything. The **weight** log has its own export mirroring it,
   named `weight_furball_lol_<date>_<time>.csv` (4 cols: Weight (kg) / pre-BM / Date / Time).
-- **Brand:** name "HabiCat"; pillowy white badge + green cat-head SVG logo; Fredoka+Nunito.
+- **Brand:** name "Habitrack"; logo is a rounded-square app icon (cream badge, mint
+  circle, white checkmark) embedded as an inline PNG data URI in the `.brand .logo`
+  `<img>`; Fredoka+Nunito.
 - **Time picker (both forms):** a custom **radial clock** composing a 24h `HH:MM` into a
   hidden input (`#time` / `#weight-time`), so downstream code is unchanged. AM/PM is
   **not stored**; times are **quarter-hour granularity** (loading snaps to the nearest
