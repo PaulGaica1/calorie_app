@@ -522,6 +522,24 @@
   }
   .chart-section-weight { margin-top: 24px; }
 
+  /* Hero figure above the weight chart: today's 7-day average, with the
+     average from 7 days ago + the change underneath in a lighter tone. */
+  .weight-hero { text-align: center; margin: 2px 2px 14px; }
+  .weight-hero .wh-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+    font-weight: 700; color: var(--muted);
+  }
+  .weight-hero .wh-value {
+    font-family: var(--font-display); font-size: 30px; font-weight: 700;
+    color: #2f6fed; line-height: 1.1; font-variant-numeric: tabular-nums;
+  }
+  .weight-hero .wh-value span { font-size: 15px; font-weight: 600; color: var(--muted); margin-left: 3px; }
+  .weight-hero .wh-past {
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    margin-top: 1px; font-variant-numeric: tabular-nums;
+  }
+  .weight-hero .wh-past .wh-delta { font-weight: 700; }
+
   .daypicker { position: relative; display: inline-flex; align-items: center; gap: 5px; }
   #day-btn { padding: 8px 14px; font-size: 14px; min-width: 96px; }
   #day-btn::after { content: " ▾"; color: var(--muted); }
@@ -2197,6 +2215,26 @@
     }
     if (showWeight) {
       if (both) html += '<div class="chart-section-title chart-section-weight">Weight</div>';
+      // Hero figure: today's 7-day trailing average, with the 7-day average from
+      // a week ago + the change underneath in a lighter tone.
+      var weekAgoKey = todayKey;
+      for (var wb = 0; wb < 7; wb++) weekAgoKey = prevDateStr(weekAgoKey);
+      var curAvg = movingAvgWeight(todayKey);
+      if (curAvg != null) {
+        var pastAvg = movingAvgWeight(weekAgoKey);
+        html += '<div class="weight-hero">' +
+          '<div class="wh-label">7-day average</div>' +
+          '<div class="wh-value">' + curAvg.toFixed(1) + '<span>kg</span></div>';
+        if (pastAvg != null) {
+          var delta = Math.round((curAvg - pastAvg) * 10) / 10;
+          var sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
+          var trend = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+          html += '<div class="wh-past">' + pastAvg.toFixed(1) + ' kg 7 days ago ' +
+            '<span class="wh-delta" style="color:' + MA_LINE[trend] + '">(' +
+            sign + Math.abs(delta).toFixed(1) + ' kg)</span></div>';
+        }
+        html += '</div>';
+      }
       html += drawStacked(cols, {
         barSlot: 64, barW: 38, clickable: true, showBars: false, plotH: 90,
         showWeightLines: true, showWeightAnnot: true,
