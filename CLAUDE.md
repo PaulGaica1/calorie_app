@@ -88,6 +88,10 @@ Weight tracking is its own self-contained feature — **never mix it into
 - **Brand:** name "Habitrack"; logo is a rounded-square app icon (cream badge, mint
   circle, white checkmark) embedded as an inline PNG data URI in the `.brand .logo`
   `<img>`; teal primary accent matched to the logo; Fredoka+Nunito.
+- **Pillowy 3D surfaces:** section `.card`s and the header `.today-stat` badge use a
+  warm white→cream gradient (`--card-grad`) + a layered "raised pad" shadow
+  (`--shadow-3d`: bright top rim, soft warm bottom edge, soft ambient drop),
+  echoing the icon's puffy 3D badge. Keep it subtle — don't let it turn heavy.
 - **Time picker (both forms):** a custom **radial clock** composing a 24h `HH:MM` into a
   hidden input (`#time` / `#weight-time`), so downstream code is unchanged. AM/PM is
   **not stored**; times are **quarter-hour granularity** (loading snaps to the nearest
