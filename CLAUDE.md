@@ -69,6 +69,11 @@ Weight tracking is its own self-contained feature — **never mix it into
 - **Keep `migrateEntry()`** (in `loadEntries`) — it upgrades old saved data (old snack
   categories; "Healthy but high calorie"→"Healthy-ish"; "Misc"→unrated). Never drop it;
   real users have data.
+- **Primary accent is teal** (`--accent`/`--accent-d`/`--accent-soft` = `#1b9c94` /
+  `#10847e` / `#e2f4f2`), derived from the logo's turquoise; drives all calorie-side
+  chrome (buttons, toggles, focus rings, time/day pickers, Today stat, default tag).
+  **Weight stays blue** and the **health-rating scale stays green** (green = healthy
+  is semantic) — those are not part of the accent and must not be rethemed with it.
 - **Self-assessment is the 4-step scale** with fixed `SELF_COLORS` = red, yellow,
   light-green, dark-green (+ grey when unrated). Those colours also drive the charts.
 - **Chart semantics:** bars are **stacked per meal in eating order** (never merge
@@ -82,7 +87,7 @@ Weight tracking is its own self-contained feature — **never mix it into
   named `weight_furball_lol_<date>_<time>.csv` (4 cols: Weight (kg) / pre-BM / Date / Time).
 - **Brand:** name "Habitrack"; logo is a rounded-square app icon (cream badge, mint
   circle, white checkmark) embedded as an inline PNG data URI in the `.brand .logo`
-  `<img>`; Fredoka+Nunito.
+  `<img>`; teal primary accent matched to the logo; Fredoka+Nunito.
 - **Time picker (both forms):** a custom **radial clock** composing a 24h `HH:MM` into a
   hidden input (`#time` / `#weight-time`), so downstream code is unchanged. AM/PM is
   **not stored**; times are **quarter-hour granularity** (loading snaps to the nearest
