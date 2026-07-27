@@ -107,6 +107,12 @@ Weight tracking is its own self-contained feature — **never mix it into
   **no mode toggle**. Section headers appear only when both blocks are present.
 - **Weight chart uses a fixed ±2 kg vertical window** (widens only past a 4 kg span)
   and has **no axis labels**.
+- **Weight hero figure** sits above the weight chart (under the "Weight" section
+  header when both charts show): today's **7-day trailing average** in large blue,
+  with the 7-day average **from a week ago + the kg change in parentheses**
+  underneath in a lighter/muted line (delta tinted red rising / green falling per
+  the moving-average colour language). Both averages reuse `movingAvgWeight()`
+  (ignores blank days); hidden when there's no weigh-in in the last 7 days.
 - **Weight colour language:** reported-weight **line = blue**; per-day weight **pills**
   = blue (pre-BM Yes/blank) or **purple** (pre-BM No); **7-day moving average** =
   light-red rising / light-green falling (chips + chart) and stronger red/green line
