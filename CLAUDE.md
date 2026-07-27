@@ -116,8 +116,10 @@ Weight tracking is its own self-contained feature — **never mix it into
 - **Per-day chart = two stacked, scroll-synced blocks**: Calories (full height) on
   top, Weight (squished, `plotH` ~90) below. Both always show when they have data —
   **no mode toggle**. Section headers appear only when both blocks are present.
-- **Weight chart uses a fixed ±2 kg vertical window** (widens only past a 4 kg span)
-  and has **no axis labels**.
+- **Weight chart uses a fixed ±2 kg vertical window** (widens only past a 4 kg
+  span) with a **3-tick kg y-axis (hi/mid/lo) + faint gridlines**, pinned on the
+  left and mirroring the calorie chart's axis. The scale is hoisted in
+  `drawStacked()` so the pinned axis and the lines share one `weightWy()` mapping.
 - **Weight hero figure** sits above the weight chart (under the "Weight" section
   header when both charts show): today's **7-day trailing average** in large blue,
   with the 7-day average **from a week ago + the kg change in parentheses**

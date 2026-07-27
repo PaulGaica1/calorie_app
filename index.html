@@ -1963,10 +1963,33 @@
     var ticks = showBars ? [0, maxVal / 2, maxVal] : [];
     function tickY(t) { return baseY - (maxVal ? (t / maxVal) * plotH : 0); }
 
+    // Weight vertical scale, hoisted so the pinned y-axis can label it (mirrors
+    // the calorie axis). Fixed ±2 kg window around the data centre; widens only
+    // past a 4 kg span. weightWy() maps a kg value onto the line band.
+    var weightWy = null, wTicks = [];
+    if (showWeightLines) {
+      var wv = [];
+      cols.forEach(function (c) {
+        if (c.weightMean != null) wv.push(c.weightMean);
+        if (c.maValue != null) wv.push(c.maValue);
+      });
+      if (wv.length) {
+        var wmin = Math.min.apply(null, wv), wmax = Math.max.apply(null, wv);
+        var wMid = (wmin + wmax) / 2, wHalf = Math.max(2, (wmax - wmin) / 2 + 0.15);
+        var wLo = wMid - wHalf, wHi = wMid + wHalf;
+        var wLineTop = padTop + 14, wLineBot = baseY - 14;
+        weightWy = function (v) { return wLineBot - (v - wLo) / (wHi - wLo) * (wLineBot - wLineTop); };
+        wTicks = [wHi, wMid, wLo];
+      }
+    }
+
     // --- Fixed y-axis (stays pinned while the bars scroll underneath) ---
     var yaxis = '<svg class="chart-yaxis" width="' + yAxisW + '" height="' + height + '" viewBox="0 0 ' + yAxisW + ' ' + height + '" aria-hidden="true">';
     ticks.forEach(function (t) {
       yaxis += '<text class="axis-label" x="' + (yAxisW - 10) + '" y="' + (tickY(t) + 4) + '" style="text-anchor:end">' + fmtNum(Math.round(t)) + '</text>';
+    });
+    wTicks.forEach(function (t) {
+      yaxis += '<text class="axis-label" x="' + (yAxisW - 10) + '" y="' + (weightWy(t) + 4) + '" style="text-anchor:end">' + fmtNum(Math.round(t)) + '</text>';
     });
     yaxis += '</svg>';
 
@@ -1984,6 +2007,10 @@
     ticks.forEach(function (t) {
       var y = tickY(t);
       svg += '<line class="axis-line" x1="0" y1="' + y + '" x2="' + (innerWidth - padRight) + '" y2="' + y + '" />';
+    });
+    wTicks.forEach(function (t) {
+      var wgy = weightWy(t);
+      svg += '<line class="axis-line" x1="0" y1="' + wgy + '" x2="' + (innerWidth - padRight) + '" y2="' + wgy + '" />';
     });
 
     var reportedPts = [], maPts = []; // weight line points, collected in date order
@@ -2081,15 +2108,9 @@
     // Weight lines (no axis/labels): blue reported-weight line + moving-average
     // line drawn in red/green segments (red when rising vs. the prior point).
     // Reported and MA share one hidden scale so their shapes are comparable.
-    if (showWeightLines && (reportedPts.length || maPts.length)) {
-      var vals = reportedPts.map(function (p) { return p.v; }).concat(maPts.map(function (p) { return p.v; }));
-      var wMin = Math.min.apply(null, vals), wMax = Math.max.apply(null, vals);
-      // Fixed ±2 kg window around the data centre so small day-to-day changes
-      // read as small; only widen past that if the data spans more than 4 kg.
-      var mid = (wMin + wMax) / 2, half = Math.max(2, (wMax - wMin) / 2 + 0.15);
-      var lo = mid - half, hi = mid + half;
-      var lineTop = padTop + 14, lineBot = baseY - 14;
-      var wy = function (v) { return lineBot - (v - lo) / (hi - lo) * (lineBot - lineTop); };
+    if (showWeightLines && weightWy && (reportedPts.length || maPts.length)) {
+      // Reuse the hoisted ±2 kg scale (weightWy) that the y-axis is labelled with.
+      var wy = weightWy;
       if (reportedPts.length > 1) {
         var dpath = reportedPts.map(function (p, ix) { return (ix ? "L" : "M") + p.x + "," + wy(p.v); }).join(" ");
         svg += '<path d="' + dpath + '" fill="none" stroke="' + WEIGHT_BLUE + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" pointer-events="none" />';
