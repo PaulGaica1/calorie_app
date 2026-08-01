@@ -122,10 +122,14 @@ Weight tracking is its own self-contained feature — **never mix it into
   `drawStacked()` so the pinned axis and the lines share one `weightWy()` mapping.
 - **Weight hero figure** sits above the weight chart (under the "Weight" section
   header when both charts show): today's **7-day trailing average** in large blue,
-  with the 7-day average **from a week ago + the kg change in parentheses**
-  underneath in a lighter/muted line (delta tinted red rising / green falling per
-  the moving-average colour language). Both averages reuse `movingAvgWeight()`
-  (ignores blank days); hidden when there's no weigh-in in the last 7 days.
+  then an **interactive comparison line**: `Up|Down <Δ> from <base-date> <7-day avg
+  on that date>` (delta tinted red rising / green falling), or `Same as <date>
+  <avg>` when unchanged, or `No data on <date>` when the base has no average. The
+  **base date is a blue calendar popup** (`.wb-btn` / `.wb-pop`, reusing the `.dp-*`
+  calendar markup, remapped to the weight blue) and **defaults to 7 days ago**;
+  only past dates are selectable, cells use `data-wbdate` (not `data-date`) so the
+  day-bar filter ignores them. Averages reuse `movingAvgWeight()` (ignores blank
+  days); the whole hero is hidden when there's no weigh-in in the last 7 days.
 - **Weight colour language:** reported-weight **line = blue**; per-day weight **pills**
   = blue (pre-BM Yes/blank) or **purple** (pre-BM No); **7-day moving average** =
   light-red rising / light-green falling (chips + chart) and stronger red/green line

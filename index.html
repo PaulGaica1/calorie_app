@@ -533,7 +533,7 @@
 
   /* Hero figure above the weight chart: today's 7-day average, with the
      average from 7 days ago + the change underneath in a lighter tone. */
-  .weight-hero { text-align: center; margin: 2px 2px 14px; }
+  .weight-hero { text-align: center; margin: 2px 2px 14px; position: relative; }
   .weight-hero .wh-label {
     font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
     font-weight: 700; color: var(--muted);
@@ -548,6 +548,44 @@
     margin-top: 1px; font-variant-numeric: tabular-nums;
   }
   .weight-hero .wh-past .wh-delta { font-weight: 700; }
+  /* Base-date button inside the hero comparison line (blue = weight). */
+  .wb-btn {
+    display: inline-block;
+    font-family: var(--font-body);
+    font-size: 13px; font-weight: 700;
+    color: var(--weight-d);
+    background: var(--weight-soft);
+    border: 1px solid var(--weight);
+    border-radius: 999px;
+    padding: 1px 9px;
+    margin: 0 1px;
+    cursor: pointer;
+    vertical-align: baseline;
+    line-height: 1.4;
+  }
+  .wb-btn:hover { background: #dbe7fb; }
+  /* Base-date calendar popup: reuses .dp-* markup, centered under the hero,
+     remapped to the blue weight accent. */
+  .wb-pop {
+    position: absolute;
+    left: 50%; transform: translateX(-50%);
+    top: 100%; margin-top: 6px;
+    z-index: 40;
+    width: 264px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 12px;
+    text-align: left;
+    --accent: var(--weight);
+    --accent-d: var(--weight-d);
+    --accent-soft: var(--weight-soft);
+  }
+  .wb-pop .dp-day.disabled { opacity: .3; cursor: default; }
+  .wb-pop .dp-day.disabled:hover { background: none; }
+  .wb-nav { border: none; background: none; cursor: pointer; font-size: 18px; line-height: 1; color: var(--muted); padding: 4px 9px; border-radius: 8px; }
+  .wb-nav:hover { background: var(--weight-soft); color: var(--weight-d); }
 
   .daypicker { position: relative; display: inline-flex; align-items: center; gap: 5px; }
   #day-btn { padding: 8px 14px; font-size: 14px; min-width: 96px; }
@@ -1091,6 +1129,10 @@
   // Remembered horizontal scroll of the per-day chart. null = snap to the most
   // recent day (right edge); a number = keep the user where they slid to.
   var dayChartScroll = null;
+  // Weight hero comparison: base date whose 7-day average today is compared against.
+  var weightBaseDate = null; // null = "7 days before today" (recomputed each render)
+  var weightBaseOpen = false; // base-date calendar popup open?
+  var weightBaseMonth = null; // { y, m } shown in that popup
 
   // --- Table pagination ---
   var PAGE_SIZE = 5;
@@ -1352,6 +1394,7 @@
   function fmtWeight(kg) { return (Math.round(Number(kg) * 10) / 10) + " kg"; } // 72.53 -> "72.5 kg"
   function timeToMin(t) { return (+t.slice(0, 2)) * 60 + (+t.slice(3, 5)); } // "hh:mm" -> minutes
   function prevDateStr(iso) { var d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() - 1); return dateStr(d); }
+  function daysBefore(iso, n) { var d = iso; for (var i = 0; i < n; i++) d = prevDateStr(d); return d; }
   // Friendly, compact date for the table (e.g. "Jun 29"); adds the year only
   // when it isn't the current year. The stored ISO date is unchanged.
   function formatDateShort(iso) {
@@ -2215,24 +2258,33 @@
     }
     if (showWeight) {
       if (both) html += '<div class="chart-section-title chart-section-weight">Weight</div>';
-      // Hero figure: today's 7-day trailing average, with the 7-day average from
-      // a week ago + the change underneath in a lighter tone.
-      var weekAgoKey = todayKey;
-      for (var wb = 0; wb < 7; wb++) weekAgoKey = prevDateStr(weekAgoKey);
+      // Hero figure: today's 7-day trailing average, then a directional comparison
+      // against the 7-day average on a user-selectable base date (default 7 days
+      // ago), picked via a small blue calendar popup.
       var curAvg = movingAvgWeight(todayKey);
       if (curAvg != null) {
-        var pastAvg = movingAvgWeight(weekAgoKey);
+        var baseKey = weightBaseDate || daysBefore(todayKey, 7);
+        var pastAvg = movingAvgWeight(baseKey);
+        var dateBtn = '<button type="button" class="wb-btn">' + formatDateShort(baseKey) + ' ▾</button>';
         html += '<div class="weight-hero">' +
           '<div class="wh-label">7-day average</div>' +
           '<div class="wh-value">' + curAvg.toFixed(1) + '<span>kg</span></div>';
-        if (pastAvg != null) {
+        if (pastAvg == null) {
+          html += '<div class="wh-past">No data on ' + dateBtn + '</div>';
+        } else {
           var delta = Math.round((curAvg - pastAvg) * 10) / 10;
-          var sign = delta > 0 ? "+" : delta < 0 ? "−" : "±";
-          var trend = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
-          html += '<div class="wh-past">' + pastAvg.toFixed(1) + ' kg 7 days ago ' +
-            '<span class="wh-delta" style="color:' + MA_LINE[trend] + '">(' +
-            sign + Math.abs(delta).toFixed(1) + ' kg)</span></div>';
+          if (delta === 0) {
+            html += '<div class="wh-past">Same as ' + dateBtn + ' ' + pastAvg.toFixed(1) + ' kg</div>';
+          } else {
+            var trend = delta > 0 ? "up" : "down";
+            var word = delta > 0 ? "Up" : "Down";
+            html += '<div class="wh-past">' +
+              '<span class="wh-delta" style="color:' + MA_LINE[trend] + '">' + word + ' ' + Math.abs(delta).toFixed(1) + ' kg</span>' +
+              ' from ' + dateBtn + ' ' + pastAvg.toFixed(1) + ' kg</div>';
+          }
         }
+        html += '<div class="wb-pop' + (weightBaseOpen ? '' : ' hidden') + '">' +
+          (weightBaseOpen ? weightBaseCalendarHTML(baseKey) : '') + '</div>';
         html += '</div>';
       }
       html += drawStacked(cols, {
@@ -2343,6 +2395,39 @@
   }
   function closePicker() { dayPop.classList.add("hidden"); }
 
+  // Calendar markup for the weight hero's base-date picker (blue-themed via the
+  // .wb-pop scope). Days with a weigh-in get the "logged" dot; only past dates
+  // are selectable (base must be earlier than today). Cells carry data-wbdate so
+  // they don't collide with the chart's day-bar [data-date] handler.
+  function weightBaseCalendarHTML(baseKey) {
+    var m = weightBaseMonth ? weightBaseMonth.m : (+baseKey.split("-")[1] - 1);
+    var y = weightBaseMonth ? weightBaseMonth.y : (+baseKey.split("-")[0]);
+    var startDow = new Date(y, m, 1).getDay();
+    var daysInMonth = new Date(y, m + 1, 0).getDate();
+    var logged = {}; weightEntries.forEach(function (w) { logged[w.date] = true; });
+    var today = dateStr(new Date());
+    var html = '<div class="dp-head">' +
+      '<button type="button" class="wb-nav" data-d="-1" aria-label="Previous month">‹</button>' +
+      '<span class="dp-title">' + MONTHS[m] + ' ' + y + '</span>' +
+      '<button type="button" class="wb-nav" data-d="1" aria-label="Next month">›</button></div>' +
+      '<div class="dp-grid">';
+    ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].forEach(function (w) { html += '<div class="dp-wd">' + w + '</div>'; });
+    for (var i = 0; i < startDow; i++) html += '<div class="dp-day empty"></div>';
+    for (var d = 1; d <= daysInMonth; d++) {
+      var iso = y + "-" + pad(m + 1) + "-" + pad(d);
+      var cls = "dp-day";
+      if (logged[iso]) cls += " logged";
+      if (iso === today) cls += " today";
+      if (iso === baseKey) cls += " selected";
+      if (iso >= today) { // future/today can't be a past base date
+        html += '<div class="' + cls + ' disabled">' + d + '</div>';
+      } else {
+        html += '<div class="' + cls + '" data-wbdate="' + iso + '">' + d + '</div>';
+      }
+    }
+    return html + '</div>';
+  }
+
   dayBtn.addEventListener("click", function (e) {
     e.stopPropagation();
     if (dayPop.classList.contains("hidden")) openPicker(); else closePicker();
@@ -2368,6 +2453,49 @@
   });
   document.addEventListener("click", function (e) { if (!e.target.closest("#daypicker")) closePicker(); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closePicker(); });
+
+  // Weight hero base-date picker: delegated on the chart container since the hero
+  // markup is rebuilt on every render. Uses data-wbdate (not data-date) so the
+  // day-bar filter handler ignores these clicks.
+  chartContainer.addEventListener("click", function (e) {
+    var btn = e.target.closest(".wb-btn");
+    if (btn) {
+      e.stopPropagation();
+      weightBaseOpen = !weightBaseOpen;
+      if (weightBaseOpen) {
+        var bk = (weightBaseDate || daysBefore(dateStr(new Date()), 7)).split("-");
+        weightBaseMonth = { y: +bk[0], m: +bk[1] - 1 };
+      }
+      renderChart();
+      return;
+    }
+    var nav = e.target.closest(".wb-nav");
+    if (nav) {
+      e.stopPropagation();
+      if (!weightBaseMonth) return;
+      weightBaseMonth.m += (+nav.getAttribute("data-d"));
+      if (weightBaseMonth.m < 0) { weightBaseMonth.m = 11; weightBaseMonth.y--; }
+      else if (weightBaseMonth.m > 11) { weightBaseMonth.m = 0; weightBaseMonth.y++; }
+      renderChart();
+      return;
+    }
+    var day = e.target.closest(".dp-day[data-wbdate]");
+    if (day) {
+      e.stopPropagation();
+      weightBaseDate = day.getAttribute("data-wbdate");
+      weightBaseOpen = false;
+      renderChart();
+    }
+  });
+  function closeWeightBase() {
+    if (!weightBaseOpen) return;
+    weightBaseOpen = false;
+    renderChart();
+  }
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".weight-hero")) closeWeightBase();
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeWeightBase(); });
 
   chartToggle.addEventListener("click", function (e) {
     var btn = e.target.closest("button[data-chart]");
