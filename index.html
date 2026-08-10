@@ -1258,12 +1258,25 @@
         active = null;
       } else if (info.r <= RMO + 1) { active = "min"; pick(info); }
       else { active = "hour"; pick(info); }
-      try { clockEl.setPointerCapture(e.pointerId); } catch (err) {}
+      // Only capture while actually dragging a ring — a centre AM/PM tap needs no
+      // capture, and holding one longer than necessary risks wedging touch input.
+      if (active) { try { clockEl.setPointerCapture(e.pointerId); } catch (err) {} }
       e.preventDefault();
     });
     clockEl.addEventListener("pointermove", function (e) { if (active) { pick(at(e)); e.preventDefault(); } });
-    clockEl.addEventListener("pointerup", function () { active = null; });
-    clockEl.addEventListener("pointercancel", function () { active = null; });
+    function endDrag(e) {
+      active = null;
+      if (e && e.pointerId != null) {
+        try { clockEl.releasePointerCapture(e.pointerId); } catch (err) {}
+      }
+    }
+    clockEl.addEventListener("pointerup", endDrag);
+    clockEl.addEventListener("pointercancel", endDrag);
+    // Safety net: if the platform ever drops the final pointer event on the clock
+    // (iOS does under some conditions), clear the drag state anyway so the picker
+    // can't stay stuck capturing and swallowing taps meant for other controls.
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
 
     adjustBtn.addEventListener("click", function () {
       var open = clockEl.classList.toggle("hidden") === false;
@@ -2735,8 +2748,15 @@
   // Block pinch-zoom on iOS Safari (which ignores user-scalable=no) so the UI
   // always stays fit to the screen. Double-tap zoom is handled by the CSS
   // `touch-action: manipulation`; single taps and scrolling are unaffected.
+  // Interactive controls are skipped: a stray gesture event over an input must
+  // never have its default suppressed, or the field wouldn't focus and the
+  // on-screen keyboard wouldn't open.
   ["gesturestart", "gesturechange", "gestureend"].forEach(function (ev) {
-    document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+    document.addEventListener(ev, function (e) {
+      var t = e.target;
+      if (t && t.closest && t.closest("input, textarea, select, button, [contenteditable]")) return;
+      e.preventDefault();
+    }, { passive: false });
   });
 
   // --- Init ---

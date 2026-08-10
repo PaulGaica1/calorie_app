@@ -109,6 +109,12 @@ Weight tracking is its own self-contained feature — **never mix it into
   user-scalable=no`; `html` has `touch-action: manipulation` + `text-size-adjust: 100%`;
   iOS Safari pinch is blocked via `gesturestart/change/end` handlers. Deliberate, despite
   the accessibility trade-off. Date inputs are capped (~210px), not full width.
+  **The pinch blocker must keep skipping interactive controls** (`input, textarea,
+  select, button, [contenteditable]`) — suppressing the default over a field stops it
+  focusing and the on-screen keyboard never opens. Likewise the radial clock only takes
+  a pointer capture while a ring is actually being dragged, releases it on
+  pointerup/pointercancel, and has a window-level safety net that clears the drag state:
+  a stuck capture would swallow taps meant for other controls.
 
 ### Weight feature semantics (do NOT reverse)
 - **Blue accent** for everything weight (vs. green for calories); the weight input
