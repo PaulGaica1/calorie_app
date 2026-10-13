@@ -110,6 +110,24 @@ the data, and offers a 10 s Undo.
   item logged at or before now (`lastMealInfo()`; hidden after 48h). Fasting gets a quiet
   toast once per fast at **12h and 16h only** — deliberately nothing beyond, so the app
   never rewards ever-longer fasts. Seen marks are kept in `habitState.fastSeen`.
+- **Logging streak** (`streakInfo()`, header badge → Milestones sheet): consecutive days
+  with **any** food or weight log. Forgiving and stateless (computed from the data, so
+  back-filling repairs it): one missed day in any 7 is bridged as a **rest day**; a run ends
+  only on two missed days in a row or a second missed day within a week; today never
+  counts as missed. While today is unlogged the badge goes calm/muted ("pending", never
+  red) and the Today panel nudges "Log anything today to keep your N-day streak".
+- **Consistency heatmap:** last 12 weeks (columns = Sun–Sat weeks, this week last). Every
+  logged day is filled — not-so-healthy days still count as showing up — with green
+  deepening by healthy share (`l0` soft teal = nothing rated → `l4`); blue dot = weigh-in.
+  Tapping a logged day sets `filterDate` (same path as a chart bar, cells use
+  `data-hdate`) and scrolls to the Entries table.
+- **Milestones** (`MILESTONES`): first log, first weigh-in, streaks 3/7/14/30/60/100 (by
+  best streak), 100/250/500/1000 entries, 10/30 weigh-ins — only ever about logging.
+  Earned once (date in `habitState.milestones`), celebrated once with confetti + a toast
+  that **queues behind** the action's own Undo toast (`queueToast`); qualifying history
+  earns them in one go. Confetti is skipped with reduced motion.
+- **`.hidden` is `!important`** so a component rule that sets `display` can never un-hide
+  something the code hid.
 - **Live tick:** every 30 s (and on returning to the app / day rollover) the panel
   redraws, and an **untouched** form's date/time moves on to now (`autoStamp`), so a log
   after the app sat open never lands on a stale time or yesterday. A date/time the user
