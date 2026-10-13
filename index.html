@@ -862,6 +862,56 @@
   @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
   @keyframes toast-out { to { opacity: 0; transform: translateY(12px); } }
 
+  /* Today panel: ring of today's calories vs your usual day (a reference, not a
+     goal — never red), meals logged, healthy share, and a live fasting timer. */
+  .today-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .today-head h2 { margin: 0; }
+  .today-date { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .today-body { display: flex; align-items: center; gap: 20px; }
+  .ring-wrap { position: relative; width: 116px; height: 116px; flex-shrink: 0; }
+  .today-ring { width: 100%; height: 100%; display: block; }
+  .ring-track { fill: none; stroke: var(--bg-2); stroke-width: 11; }
+  .ring-fill {
+    fill: none; stroke: var(--accent); stroke-width: 11; stroke-linecap: round;
+    transition: stroke-dashoffset .7s cubic-bezier(.2, .8, .2, 1);
+  }
+  .ring-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    line-height: 1.05;
+  }
+  .ring-num { font-family: var(--font-display); font-size: 25px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .ring-unit { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .today-stats { flex: 1; min-width: 0; max-width: 440px; }
+  .ts-usual { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 9px; }
+  .ts-usual b { color: var(--text); }
+  .ts-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .ts-chip {
+    display: inline-flex; align-items: baseline; gap: 5px;
+    background: var(--bg-2); border-radius: 999px; padding: 4px 11px;
+    font-size: 12.5px; font-weight: 600; color: var(--muted);
+  }
+  .ts-chip b { font-family: var(--font-display); font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .ts-chip.healthy b { color: #2f9e6e; }
+  /* Fasting timer: time since the last thing you logged, with 12h/16h marks. */
+  .fast { border-top: 1px solid var(--border); padding-top: 10px; }
+  .fast-line { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .fast-line b { font-family: var(--font-display); font-size: 16px; color: var(--accent-d); font-variant-numeric: tabular-nums; margin: 0 2px; }
+  .fast-since { font-size: 12px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fast-bar { position: relative; height: 6px; border-radius: 999px; background: var(--bg-2); margin: 9px 0 4px; }
+  .fast-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--accent); transition: width .7s ease; }
+  .fast-marks { position: relative; height: 15px; font-size: 10.5px; font-weight: 700; color: var(--muted); }
+  .fast-marks span { position: absolute; transform: translateX(-50%); }
+  .fast-marks span.hit { color: var(--accent-d); }
+  .fast.pulse .fast-line b { animation: fast-pulse .9s ease-out; }
+  @keyframes fast-pulse { 30% { transform: scale(1.18); } }
+  .fast-line b { display: inline-block; }
+  @media (max-width: 560px) {
+    .today-body { gap: 15px; }
+    .ring-wrap { width: 104px; height: 104px; }
+    .ring-num { font-size: 22px; }
+  }
+
   /* Quick log: one-tap chips for your usual foods (tap = log now, ✎ = edit first).
      One horizontally scrolling row so the form below stays put. */
   .quick-log { margin: -4px 0 18px; }
@@ -983,6 +1033,39 @@
       <div class="value" id="today-value">0<span>cal</span></div>
     </div>
   </header>
+
+  <!-- 0. Today panel -->
+  <section class="card today-card" id="today-card">
+    <div class="today-head">
+      <h2>Today</h2>
+      <span class="today-date" id="today-date"></span>
+    </div>
+    <div class="today-body">
+      <div class="ring-wrap">
+        <svg class="today-ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="ring-track" cx="60" cy="60" r="50" />
+          <circle class="ring-fill" id="ring-fill" cx="60" cy="60" r="50" transform="rotate(-90 60 60)" />
+        </svg>
+        <div class="ring-center">
+          <div class="ring-num" id="ring-num">0</div>
+          <div class="ring-unit">cal</div>
+        </div>
+      </div>
+      <div class="today-stats">
+        <div class="ts-usual" id="ts-usual"></div>
+        <div class="ts-chips">
+          <span class="ts-chip"><b id="ts-meals">0</b> <span id="ts-meals-label">logged</span></span>
+          <span class="ts-chip healthy hidden" id="ts-healthy-chip"><b id="ts-healthy">0%</b> healthy</span>
+        </div>
+        <div class="fast hidden" id="fast">
+          <div class="fast-line">Fasting <b id="fast-time">0m</b></div>
+          <div class="fast-since" id="fast-since"></div>
+          <div class="fast-bar"><i id="fast-fill"></i></div>
+          <div class="fast-marks"><span id="fast-m12" style="left:75%">12h</span><span id="fast-m16" style="left:100%;transform:translateX(-100%)">16h</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- 1. Entry form -->
   <section class="card" id="entry-card">
@@ -1572,7 +1655,7 @@
   // recap dismissed, onboarding seen). Its own key — never mixed into the data
   // stores above. Unknown/missing fields fall back to the defaults.
   function defaultHabitState() {
-    return { milestones: {}, recapDismissed: "", onboarded: false };
+    return { milestones: {}, recapDismissed: "", onboarded: false, fastSeen: "" };
   }
   function normalizeHabitState(s) {
     var d = defaultHabitState();
@@ -1580,6 +1663,7 @@
     if (s.milestones && typeof s.milestones === "object") d.milestones = s.milestones;
     if (typeof s.recapDismissed === "string") d.recapDismissed = s.recapDismissed;
     if (s.onboarded === true) d.onboarded = true;
+    if (typeof s.fastSeen === "string") d.fastSeen = s.fastSeen;
     return d;
   }
   function loadHabitState() {
@@ -1644,6 +1728,7 @@
     dateEl.value = dateStr(now);
     categoryAuto = true; // pre-select the category for this time of day…
     calorieTime.set(timeStr(now)); // …which the clock's onChange applies
+    autoStamp.food = formStamp(dateEl, timeEl);
     errorEl.textContent = "";
     saveBtn.textContent = "Save entry";
     cancelBtn.classList.add("hidden");
@@ -1657,6 +1742,10 @@
   // Breakfast …) and keeps following the clock while the user hasn't picked one.
   // A manual pick, a suggestion or an edit takes over for the rest of that entry.
   var PART_CATEGORY = ["Breakfast", "Lunch", "Snack", "Dinner", "Snack"]; // per DAY_PARTS
+  // The date|time each form was last auto-filled with ("now"); if the fields still
+  // hold it, the user hasn't touched them and the live tick may move them on.
+  var autoStamp = { food: "", weight: "" };
+  function formStamp(dateInput, timeInput) { return dateInput.value + "|" + timeInput.value; }
   var categoryAuto = false;
   function autoCategory(hhmm) {
     if (!categoryAuto || !/^\d{2}:\d{2}$/.test(hhmm || "")) return;
@@ -1931,6 +2020,7 @@
     setSelected(prebmGroup, "");
     weightDateEl.value = dateStr(now);
     weightTime.set(timeStr(now));
+    autoStamp.weight = formStamp(weightDateEl, weightTimeEl);
     weightError.textContent = "";
     weightSaveBtn.textContent = "Save weight";
     weightCancelBtn.classList.add("hidden");
@@ -2412,33 +2502,169 @@
     renderTable();
     renderWeightTable();
     renderTodayStat();
+    renderTodayPanel();
     renderQuickLog();
     exportBtn.disabled = entries.length === 0;
     weightExportBtn.disabled = weightEntries.length === 0;
   }
 
-  // Today's total counts up/down to its new value (instant on first paint or
-  // with reduced motion).
-  var todayShown = null, todayAnim = 0;
-  function paintToday(v) { todayValueEl.innerHTML = fmtNum(v) + "<span>cal</span>"; }
-  function renderTodayStat() {
-    var today = dateStr(new Date());
-    var total = entries.reduce(function (sum, en) {
-      return en.date === today ? sum + en.estimatedCalories : sum;
-    }, 0);
-    var from = todayShown;
-    todayShown = total;
-    cancelAnimationFrame(todayAnim);
-    if (from == null || from === total || prefersReducedMotion()) { paintToday(total); return; }
+  // Count a displayed number up/down to its new value (instant on first paint or
+  // with reduced motion). `key` names the display so each keeps its own state.
+  var numAnims = {};
+  function animateNumber(key, to, paint) {
+    var a = numAnims[key] || (numAnims[key] = { shown: null, raf: 0 });
+    var from = a.shown;
+    a.shown = to;
+    cancelAnimationFrame(a.raf);
+    if (from == null || from === to || prefersReducedMotion()) { paint(to); return; }
     var start = 0;
     function step(ts) {
       if (!start) start = ts;
       var k = Math.min(1, (ts - start) / 550), eased = 1 - Math.pow(1 - k, 3);
-      paintToday(Math.round(from + (total - from) * eased));
-      if (k < 1) todayAnim = requestAnimationFrame(step);
+      paint(Math.round(from + (to - from) * eased));
+      if (k < 1) a.raf = requestAnimationFrame(step);
     }
-    todayAnim = requestAnimationFrame(step);
+    a.raf = requestAnimationFrame(step);
   }
+  function renderTodayStat() {
+    var total = dayStats(dateStr(new Date())).calories;
+    animateNumber("header", total, function (v) { todayValueEl.innerHTML = fmtNum(v) + "<span>cal</span>"; });
+  }
+
+  // --- Day stats (shared by the Today panel and later habit views) ---
+  function isHealthy(en) { return en.selfAssessment === "Healthy" || en.selfAssessment === "Healthy-ish"; }
+  // Calories, items logged, and healthy share of the *rated* items for one day
+  // (unrated items don't count against it; null when nothing is rated).
+  function dayStats(iso) {
+    var calories = 0, count = 0, rated = 0, healthy = 0;
+    entries.forEach(function (en) {
+      if (en.date !== iso) return;
+      calories += en.estimatedCalories;
+      count++;
+      if (en.selfAssessment) { rated++; if (isHealthy(en)) healthy++; }
+    });
+    return { calories: calories, count: count, rated: rated, healthy: healthy, healthyShare: rated ? healthy / rated : null };
+  }
+  // "Your usual day": mean daily calories over the last ≤10 logged days *before*
+  // today, so today's partial total doesn't drag the reference down as it grows.
+  function usualDailyCalories() {
+    var today = dateStr(new Date()), byDate = {};
+    entries.forEach(function (en) {
+      if (en.date < today) byDate[en.date] = (byDate[en.date] || 0) + en.estimatedCalories;
+    });
+    var last = Object.keys(byDate).sort().slice(-10);
+    if (!last.length) return null;
+    return last.reduce(function (s, d) { return s + byDate[d]; }, 0) / last.length;
+  }
+  // The most recent thing logged at or before now (future-dated entries skipped).
+  function lastMealInfo() {
+    var now = new Date(), nowTs = dateStr(now) + "T" + timeStr(now) + ":00", best = null;
+    entries.forEach(function (en) {
+      if (en.timestamp <= nowTs && (!best || en.timestamp > best.timestamp)) best = en;
+    });
+    if (!best) return null;
+    return { entry: best, minutes: Math.max(0, Math.floor((now - new Date(best.timestamp)) / 60000)) };
+  }
+  function fmtDuration(min) {
+    var h = Math.floor(min / 60), m = min % 60;
+    return h ? h + "h " + m + "m" : m + "m";
+  }
+
+  // --- Today panel ---
+  var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  var RING_C = 2 * Math.PI * 50; // ring circumference (r = 50 in the 120 viewBox)
+  // Fasting marks get a quiet nod once per fast. Deliberately nothing past 16h:
+  // the app rewards a steady rhythm, never ever-longer fasts.
+  var FAST_MARKS = [12, 16];
+  var ringFill = document.getElementById("ring-fill");
+  var ringNum = document.getElementById("ring-num");
+  var fastEl = document.getElementById("fast");
+  ringFill.style.strokeDasharray = RING_C;
+  ringFill.style.strokeDashoffset = RING_C;
+
+  function renderTodayPanel() {
+    var now = new Date(), today = dateStr(now);
+    document.getElementById("today-date").textContent = DOW[now.getDay()] + ", " + MONTHS[now.getMonth()] + " " + now.getDate();
+    var st = dayStats(today), usual = usualDailyCalories();
+
+    // Ring: today vs your usual day. Full once you reach it; no overflow colour.
+    animateNumber("ring", st.calories, function (v) { ringNum.textContent = fmtNum(v); });
+    ringFill.style.strokeDashoffset = RING_C * (1 - (usual ? Math.min(1, st.calories / usual) : 0));
+    var usualEl = document.getElementById("ts-usual");
+    if (usual) {
+      var u = fmtNum(Math.round(usual / 10) * 10);
+      usualEl.innerHTML = st.calories <= usual ? "of your usual <b>~" + u + "</b>" : "your usual is <b>~" + u + "</b>";
+    } else {
+      usualEl.textContent = st.count ? "Your usual day shows up after your first full day" : "Nothing logged yet today";
+    }
+
+    document.getElementById("ts-meals").textContent = st.count;
+    var healthyChip = document.getElementById("ts-healthy-chip");
+    healthyChip.classList.toggle("hidden", st.healthyShare == null);
+    if (st.healthyShare != null) document.getElementById("ts-healthy").textContent = Math.round(st.healthyShare * 100) + "%";
+
+    // Fasting: time since the last thing logged (hidden after 48h — stale).
+    var last = lastMealInfo();
+    var showFast = !!last && last.minutes <= 48 * 60;
+    fastEl.classList.toggle("hidden", !showFast);
+    if (!showFast) return;
+    var e = last.entry;
+    var when = e.date === today ? e.time : (e.date === prevDateStr(today) ? "yesterday " + e.time : formatDateShort(e.date) + " " + e.time);
+    document.getElementById("fast-time").textContent = fmtDuration(last.minutes);
+    document.getElementById("fast-since").textContent = "since " + e.what + " · " + when;
+    document.getElementById("fast-fill").style.width = Math.min(100, last.minutes / (16 * 60) * 100) + "%";
+    document.getElementById("fast-m12").classList.toggle("hit", last.minutes >= 12 * 60);
+    document.getElementById("fast-m16").classList.toggle("hit", last.minutes >= 16 * 60);
+    nodFastMark(last);
+  }
+  // Once per fast and mark: a toast and a pulse on the timer. Keyed on the last
+  // meal's timestamp so a new meal starts a fresh fast.
+  function nodFastMark(last) {
+    var hit = 0;
+    FAST_MARKS.forEach(function (h) { if (last.minutes >= h * 60) hit = h; });
+    if (!hit) return;
+    var seen = habitState.fastSeen.split("|");
+    if (seen[0] === last.entry.timestamp && +seen[1] >= hit) return;
+    habitState.fastSeen = last.entry.timestamp + "|" + hit;
+    saveHabitState();
+    showToast(hit + "h fast ✓ — nice rhythm");
+    fastEl.classList.remove("pulse");
+    void fastEl.offsetWidth;
+    fastEl.classList.add("pulse");
+  }
+
+  // Keep the panel live: refresh every 30 s while visible, and redraw everything
+  // when you come back to the app or the day rolls over. Each tick also moves an
+  // untouched form's date/time on to "now" — so a log after the app sat open
+  // (or a morning log) never lands on a stale time or yesterday. A date/time the
+  // user set themselves is left alone.
+  var shownDay = dateStr(new Date());
+  function refreshPristineForms() {
+    var now = new Date();
+    if (!editingId && !whatEl.value.trim() && !caloriesEl.value && formStamp(dateEl, timeEl) === autoStamp.food) {
+      dateEl.value = dateStr(now);
+      calorieTime.set(timeStr(now));
+      autoStamp.food = formStamp(dateEl, timeEl);
+    }
+    if (!editingWeightId && !weightKgEl.value.trim() && formStamp(weightDateEl, weightTimeEl) === autoStamp.weight) {
+      weightDateEl.value = dateStr(now);
+      weightTime.set(timeStr(now));
+      autoStamp.weight = formStamp(weightDateEl, weightTimeEl);
+    }
+  }
+  function tick(returning) {
+    if (document.hidden) return;
+    refreshPristineForms();
+    var d = dateStr(new Date());
+    if (d !== shownDay || returning === true) {
+      shownDay = d;
+      render();
+    } else {
+      renderTodayPanel();
+    }
+  }
+  setInterval(tick, 30000);
+  document.addEventListener("visibilitychange", function () { tick(true); });
 
   // Parts of the day (by meal hour). "Night" wraps past midnight (21:00–04:59):
   // hours before 5 are treated as hour+24 so a 2am snack lands in Night.
