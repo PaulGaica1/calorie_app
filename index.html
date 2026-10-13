@@ -1134,6 +1134,23 @@
     .tab-plus { width: 20px; height: 20px; margin: 0; font-size: 18px; padding-bottom: 2px; box-shadow: none; }
     .tab-log[aria-selected="true"] .tab-plus { box-shadow: none; }
   }
+  /* + Log tab: the button squishes and springs back with a quarter turn (a + looks
+     the same at 90°), and the Log panel rises into place. Other tabs switch
+     instantly. No fill-mode, so nothing keeps a transform once it's done. */
+  .tab-plus.pop { animation: plus-pop .42s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes plus-pop {
+    0% { transform: scale(1) rotate(0); }
+    30% { transform: scale(.8) rotate(35deg); }
+    70% { transform: scale(1.12) rotate(90deg); }
+    100% { transform: scale(1) rotate(90deg); }
+  }
+  .tab-panel.rise { animation: panel-rise .32s cubic-bezier(.2, .9, .3, 1); }
+  @keyframes panel-rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .tab-plus.pop { animation: none; }
+    .tab-panel.rise { animation: panel-fade .2s ease-out; }
+  }
+  @keyframes panel-fade { from { opacity: 0; } }
 
   /* "Log again" card (Today tab) and the reminders nudge. */
   .ql-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
@@ -2563,11 +2580,27 @@
   function prefersReducedMotion() {
     return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }
+  // Replay a one-shot CSS animation class on `el` (restarting it if it's still
+  // running). The class removes itself when el's own animation ends, so a later
+  // display change — e.g. the tab bar reappearing after typing — never re-runs it.
+  function replayAnim(el, cls) {
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+    // Nothing to play (reduced motion, or el isn't displayed): don't leave it behind.
+    if (getComputedStyle(el).animationName === "none") { el.classList.remove(cls); return; }
+    function done(e) {
+      if (e.target !== el) return; // ignore animations of children
+      el.classList.remove(cls);
+      el.removeEventListener("animationend", done);
+      el.removeEventListener("animationcancel", done);
+    }
+    el.addEventListener("animationend", done);
+    el.addEventListener("animationcancel", done); // e.g. its container got hidden mid-way
+  }
   function celebrate(kind) {
-    savePop.classList.remove("go");
     savePop.classList.toggle("weight", kind === "weight");
-    void savePop.offsetWidth; // restart the animation if one is still running
-    savePop.classList.add("go");
+    replayAnim(savePop, "go");
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) { /* no haptics */ }
   }
 
@@ -4446,11 +4479,14 @@
   }
   function showTab(tab) {
     if (tab === currentTab) return;
+    var firstPaint = currentTab === null;
     currentTab = tab;
     TABS.forEach(function (t) {
       document.getElementById("panel-" + t).classList.toggle("hidden", t !== tab);
       document.getElementById("tab-" + t).setAttribute("aria-selected", t === tab ? "true" : "false");
     });
+    // The form rises into place whenever Log opens (other tabs switch instantly).
+    if (tab === "log" && !firstPaint) replayAnim(document.getElementById("panel-log"), "rise");
     // The charts size themselves (and snap to the newest day) from their visible
     // width, so draw them once their panel is actually showing.
     if (tab === "trends") renderChart();
@@ -4481,6 +4517,7 @@
     if (!btn) return;
     var t = btn.getAttribute("data-tab"), arriving = currentTab !== t;
     if (t === "log") {
+      replayAnim(btn.querySelector(".tab-plus"), "pop"); // squish + spring, even on a re-tap
       editReturnTab = null;
       goTab("log");
       if (arriving) focusLogForm(); // the old floating "+": straight to typing
@@ -4495,7 +4532,15 @@
   function isTextField(el) {
     return !!el && (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && /^(text|number|date|time|search|email)$/.test(el.type)));
   }
-  document.addEventListener("focusin", function (e) { if (isTextField(e.target)) document.body.classList.add("kb-open"); });
+  var tabPlus = document.querySelector("#tab-log .tab-plus");
+  function syncKbOpen() { document.body.classList.toggle("kb-open", isTextField(document.activeElement)); }
+  document.addEventListener("focusin", function (e) {
+    if (!isTextField(e.target)) return;
+    // Tapping + focuses the form straight away; let its bounce finish before the
+    // bar steps aside, so the tap's feedback is actually seen.
+    if (tabPlus.classList.contains("pop")) setTimeout(syncKbOpen, 430);
+    else document.body.classList.add("kb-open");
+  });
   document.addEventListener("focusout", function () {
     setTimeout(function () { if (!isTextField(document.activeElement)) document.body.classList.remove("kb-open"); }, 60);
   });
