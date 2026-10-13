@@ -816,8 +816,8 @@
   .hidden { display: none; }
 
   /* Toast: one transient message at the bottom of the screen, optionally with an
-     action (e.g. Undo). The host ignores taps so only the toast itself is
-     interactive; nothing underneath (inputs especially) is ever blocked. */
+     action (e.g. Undo). Only the action button takes taps — the rest passes
+     through, so a toast never blocks the field underneath it. */
   .toast-host {
     position: fixed;
     left: 0; right: 0;
@@ -829,7 +829,7 @@
     pointer-events: none;
   }
   .toast {
-    pointer-events: auto;
+    pointer-events: none; /* taps pass through the message to whatever is beneath… */
     display: flex;
     align-items: center;
     gap: 14px;
@@ -846,6 +846,7 @@
   .toast.out { animation: toast-out .2s ease-in forwards; }
   .toast-msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .toast-action {
+    pointer-events: auto; /* …only the action button itself is tappable */
     border: none;
     background: rgba(255, 255, 255, .12);
     color: #7fe0d8;
@@ -860,6 +861,101 @@
   .toast-action:hover { background: rgba(255, 255, 255, .2); }
   @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
   @keyframes toast-out { to { opacity: 0; transform: translateY(12px); } }
+
+  /* Quick log: one-tap chips for your usual foods (tap = log now, ✎ = edit first).
+     One horizontally scrolling row so the form below stays put. */
+  .quick-log { margin: -4px 0 18px; }
+  .ql-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+    font-weight: 700; color: var(--muted); margin-bottom: 7px;
+  }
+  .ql-row {
+    display: flex; gap: 8px;
+    overflow-x: auto; scrollbar-width: none;
+    margin: 0 -22px; padding: 2px 22px 6px;
+    scroll-padding: 0 22px; /* snap chips to the content edge, not the card edge */
+    scroll-snap-type: x proximity;
+  }
+  .ql-row::-webkit-scrollbar { display: none; }
+  .ql-chip {
+    display: inline-flex; flex-shrink: 0; scroll-snap-align: start;
+    border: 1px solid var(--border); border-radius: 999px; background: #fffdfb;
+    box-shadow: 0 1px 2px rgba(74, 60, 42, .06);
+    overflow: hidden;
+  }
+  .ql-chip button {
+    border: none; background: none; cursor: pointer; color: var(--text);
+    font-family: var(--font-body); font-size: 14px;
+    transition: background .12s, color .12s;
+  }
+  .ql-log { display: inline-flex; align-items: baseline; gap: 7px; padding: 8px 6px 8px 14px; }
+  .ql-name { font-weight: 700; white-space: nowrap; }
+  .ql-cal { font-size: 12px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ql-chip .ql-edit { padding: 8px 12px 8px 8px; color: var(--muted); font-size: 13px; border-left: 1px solid var(--border); }
+  .ql-log:hover, .ql-log:active { background: var(--accent-soft); color: var(--accent-d); }
+  .ql-chip .ql-edit:hover, .ql-chip .ql-edit:active { background: var(--bg-2); color: var(--text); }
+  @media (max-width: 560px) { .ql-row { margin: 0 -18px; padding: 2px 18px 6px; scroll-padding: 0 18px; } }
+
+  /* Floating "+" (mobile only): shown once the Add entry card scrolls out of view.
+     Toasts lift above it while it's showing. */
+  .fab {
+    position: fixed;
+    right: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    z-index: 80;
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 34px; font-weight: 500; line-height: 1;
+    box-shadow: 0 12px 24px -8px rgba(16, 132, 126, .7), inset 0 1.5px 0 rgba(255, 255, 255, .35);
+    cursor: pointer;
+    display: none;
+    align-items: center; justify-content: center;
+    padding-bottom: 3px;
+  }
+  .fab.weight { background: var(--weight); box-shadow: 0 12px 24px -8px rgba(37, 88, 200, .7), inset 0 1.5px 0 rgba(255, 255, 255, .35); }
+  .fab:active { transform: scale(.94); }
+  @media (max-width: 560px) {
+    .fab-on .fab { display: flex; }
+    .fab-on .toast-host { bottom: calc(90px + env(safe-area-inset-bottom)); }
+  }
+
+  /* Save celebration: a logo-like checkmark that pops in the middle of the
+     screen for a moment. Never interactive, never blocks anything. */
+  .save-pop {
+    position: fixed; left: 50%; top: 42%;
+    width: 92px; height: 92px; margin: -46px 0 0 -46px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 34% 28%, #7fdcd4 0%, var(--accent) 62%, var(--accent-d) 100%);
+    box-shadow: 0 18px 40px -12px rgba(16, 132, 126, .6), inset 0 2px 0 rgba(255, 255, 255, .35);
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; z-index: 95;
+    opacity: 0; transform: scale(.4);
+  }
+  .save-pop.weight {
+    background: radial-gradient(circle at 34% 28%, #8db4ff 0%, var(--weight) 62%, var(--weight-d) 100%);
+    box-shadow: 0 18px 40px -12px rgba(37, 88, 200, .6), inset 0 2px 0 rgba(255, 255, 255, .35);
+  }
+  .save-pop svg { width: 50px; height: 50px; overflow: visible; }
+  .save-pop path { fill: none; stroke: #fff; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 48; stroke-dashoffset: 48; }
+  .save-pop.go { animation: save-pop .78s cubic-bezier(.2, 1.3, .4, 1) forwards; }
+  .save-pop.go path { animation: save-draw .32s .14s ease-out forwards; }
+  @keyframes save-pop {
+    0% { opacity: 0; transform: scale(.4); }
+    24% { opacity: 1; transform: scale(1.08); }
+    42% { transform: scale(1); }
+    78% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(.94); }
+  }
+  @keyframes save-draw { to { stroke-dashoffset: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .save-pop.go { animation: save-fade .6s ease-out forwards; }
+    .save-pop.go path { animation: none; stroke-dashoffset: 0; }
+  }
+  @keyframes save-fade { 0%, 70% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
 
   /* "Your data" card: backup / restore */
   .data-note { font-size: 13px; color: var(--muted); margin: -8px 0 14px; }
@@ -889,7 +985,7 @@
   </header>
 
   <!-- 1. Entry form -->
-  <section class="card">
+  <section class="card" id="entry-card">
     <h2>Add entry</h2>
     <div class="entry-toggle" id="entry-toggle">
       <button type="button" data-mode="calories" class="active">Calories</button>
@@ -897,6 +993,11 @@
     </div>
     <div id="editing-banner" class="editing-banner hidden">Editing entry — make your changes and click Update.</div>
     <form id="entry-form" novalidate>
+      <div class="quick-log hidden" id="quick-log">
+        <div class="ql-label">Quick log</div>
+        <div class="ql-row" id="quick-log-row"></div>
+      </div>
+
       <div class="field">
         <label for="what">What</label>
         <div class="autocomplete-wrap">
@@ -1085,6 +1186,10 @@
   </section>
 </div>
 <div class="toast-host" id="toast-host" aria-live="polite"></div>
+<button type="button" class="fab" id="fab" aria-label="Log something">+</button>
+<div class="save-pop" id="save-pop" aria-hidden="true">
+  <svg viewBox="0 0 50 50"><path d="M12 26 L21 35 L38 15" /></svg>
+</div>
 
 <script>
 (function () {
@@ -1252,7 +1357,8 @@
   // midnight/noon). Composes a 24h "HH:MM" into a hidden input so the rest of the
   // app is unchanged. Collapsed by default behind an "Adjust" toggle.
   var MIN_LABELS = ["00", "15", "30", "45"]; // minute ring, clockwise from top
-  function makeClockPicker(readoutEl, adjustBtn, clockEl, hiddenEl) {
+  // onChange (optional) is called with the new "HH:MM" whenever the value changes.
+  function makeClockPicker(readoutEl, adjustBtn, clockEl, hiddenEl, onChange) {
     var CX = 110, CY = 110, RC = 34;   // AM/PM centre radius
     var RMI = 36, RMO = 72, RML = 54;  // minute wedge inner/outer radius + label radius
     var RHI = 74, RHO = 103, RHL = 88; // hour wedge inner/outer radius + label radius
@@ -1298,6 +1404,7 @@
       g("aml").classList.toggle("sel", !pm); g("pml").classList.toggle("sel", pm);
       readoutEl.textContent = fmtReadout();
       hiddenEl.value = pad(h24) + ":" + mm;
+      if (onChange) onChange(hiddenEl.value);
     }
 
     // Pointer geometry → which ring + angle.
@@ -1355,7 +1462,7 @@
     }
     return { set: set };
   }
-  var calorieTime = makeClockPicker(timeReadout, timeAdjust, timeClock, timeEl);
+  var calorieTime = makeClockPicker(timeReadout, timeAdjust, timeClock, timeEl, function (hhmm) { autoCategory(hhmm); });
   var weightTime = makeClockPicker(wTimeReadout, wTimeAdjust, wTimeClock, weightTimeEl);
 
   // --- Self-assessment slider ---
@@ -1535,17 +1642,33 @@
     setSelfAssessment("");
     setSelected(prepGroup, "");
     dateEl.value = dateStr(now);
-    calorieTime.set(timeStr(now));
+    categoryAuto = true; // pre-select the category for this time of day…
+    calorieTime.set(timeStr(now)); // …which the clock's onChange applies
     errorEl.textContent = "";
     saveBtn.textContent = "Save entry";
     cancelBtn.classList.add("hidden");
     editingBanner.classList.add("hidden");
     hideSuggestions();
+    renderQuickLog();
   }
+
+  // --- Smart category default ---
+  // A fresh form pre-selects the category that fits the time of day (morning →
+  // Breakfast …) and keeps following the clock while the user hasn't picked one.
+  // A manual pick, a suggestion or an edit takes over for the rest of that entry.
+  var PART_CATEGORY = ["Breakfast", "Lunch", "Snack", "Dinner", "Snack"]; // per DAY_PARTS
+  var categoryAuto = false;
+  function autoCategory(hhmm) {
+    if (!categoryAuto || !/^\d{2}:\d{2}$/.test(hhmm || "")) return;
+    setSelected(categoryGroup, PART_CATEGORY[partIndexForHour(+hhmm.slice(0, 2))]);
+  }
+  categoryGroup.addEventListener("change", function () { categoryAuto = false; });
 
   function loadEntryIntoForm(entry) {
     setEntryMode("calories"); // editing is a calorie-only flow
     editingId = entry.id;
+    categoryAuto = false;
+    renderQuickLog(); // no one-tap logging while an edit is open
     whatEl.value = entry.what;
     setSelected(categoryGroup, entry.category);
     setSelfAssessment(entry.selfAssessment || "");
@@ -1701,6 +1824,7 @@
     dayChartScroll = null; // snap the day chart back to the most recent day
     saveEntries();
     render();
+    celebrate("food");
     showToast("Logged " + v.what + " · " + fmtNum(v.estimatedCalories) + " cal", "Undo", function () {
       discardRecord("food", entry.id);
     });
@@ -1769,6 +1893,7 @@
     var isCal = mode === "calories";
     form.classList.toggle("hidden", !isCal);
     weightForm.classList.toggle("hidden", isCal);
+    fab.classList.toggle("weight", !isCal);
     // Each form shows its own editing banner only while active + editing.
     editingBanner.classList.toggle("hidden", !(isCal && editingId));
     weightEditingBanner.classList.toggle("hidden", !(!isCal && editingWeightId));
@@ -1867,6 +1992,7 @@
       saveWeightEntries();
       render(); // surface the record under its day in the chart + weight table
       resetWeightForm();
+      celebrate("weight");
       showToast("Weight logged · " + fmtWeight(kg), "Undo", function () { discardRecord("weight", rec.id); });
     }
   });
@@ -1934,6 +2060,7 @@
   // Copy a past entry's metadata into the form. Date + time default to *now*
   // (you're logging it again now, not re-using the old timestamp).
   function applySuggestion(rec) {
+    categoryAuto = false;
     whatEl.value = rec.what;
     setSelected(categoryGroup, rec.category);
     setSelfAssessment(rec.selfAssessment || "");
@@ -1976,6 +2103,99 @@
   document.addEventListener("click", function (e) {
     if (!e.target.closest(".autocomplete-wrap")) hideSuggestions();
   });
+
+  // --- Quick log ---
+  // One-tap chips for the foods you log most, favouring what you usually have at
+  // this time of day. A tap logs it straight away at "now" with its usual details
+  // (Undo is in the toast); the ✎ half loads it into the form to tweak first.
+  var quickLogEl = document.getElementById("quick-log");
+  var quickLogRow = document.getElementById("quick-log-row");
+  var quickItems = [];
+  // Score = logs in the last 30 days, +1 more for each at the current part of day;
+  // ties go to the most recently logged. Top 6.
+  function quickLogItems() {
+    var cutoff = daysBefore(dateStr(new Date()), 30);
+    var part = partIndexForHour(new Date().getHours());
+    var score = {};
+    entries.forEach(function (en) {
+      var key = en.what.trim().toLowerCase();
+      if (!key || en.date < cutoff) return;
+      score[key] = (score[key] || 0) + 1 + (partIndexForHour(+en.time.slice(0, 2)) === part ? 1 : 0);
+    });
+    function sc(rec) { return score[rec.what.trim().toLowerCase()] || 0; }
+    return canonicalByWhat().sort(function (a, b) {
+      return (sc(b) - sc(a)) || (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0);
+    }).slice(0, 6);
+  }
+  function renderQuickLog() {
+    quickItems = editingId ? [] : quickLogItems();
+    quickLogEl.classList.toggle("hidden", !quickItems.length);
+    quickLogRow.innerHTML = quickItems.map(function (rec, i) {
+      var name = escapeHtml(rec.what);
+      return '<span class="ql-chip">' +
+        '<button type="button" class="ql-log" data-ql="' + i + '" aria-label="Log ' + name + ', ' + rec.estimatedCalories + ' cal, now">' +
+          '<span class="ql-name">' + name + '</span><span class="ql-cal">' + fmtNum(rec.estimatedCalories) + '</span></button>' +
+        '<button type="button" class="ql-edit" data-qledit="' + i + '" aria-label="Edit ' + name + ' before logging">✎</button>' +
+        '</span>';
+    }).join("");
+  }
+  // "Now" snapped to the quarter hour like the clock's Now button (never past 23:45).
+  function quarterNowTime() {
+    var d = new Date(), h = d.getHours(), m = Math.round(d.getMinutes() / 15) * 15;
+    if (m === 60) { if (h === 23) m = 45; else { h++; m = 0; } }
+    return pad(h) + ":" + pad(m);
+  }
+  quickLogRow.addEventListener("click", function (e) {
+    var logBtn = e.target.closest("[data-ql]");
+    var editBtn = e.target.closest("[data-qledit]");
+    if (logBtn) {
+      var rec = quickItems[+logBtn.getAttribute("data-ql")];
+      if (!rec) return;
+      addEntry({
+        what: rec.what,
+        category: rec.category,
+        selfAssessment: rec.selfAssessment || "",
+        prepMode: rec.prepMode || "",
+        date: dateStr(new Date()),
+        time: quarterNowTime(),
+        estimatedCalories: rec.estimatedCalories
+      });
+    } else if (editBtn) {
+      var r = quickItems[+editBtn.getAttribute("data-qledit")];
+      if (r) applySuggestion(r);
+    }
+  });
+
+  // --- Floating "+" (mobile) ---
+  // Appears only once the whole Add entry card is off screen, so it can never sit
+  // on top of the form's own fields; tapping it brings the form back and focuses
+  // the first field of whichever mode is active.
+  var fab = document.getElementById("fab");
+  var entryCard = document.getElementById("entry-card");
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (items) {
+      document.body.classList.toggle("fab-on", !items[0].isIntersecting);
+    }).observe(entryCard);
+  }
+  fab.addEventListener("click", function () {
+    (entryMode === "weight" ? weightKgEl : whatEl).focus({ preventScroll: true });
+    entryCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  // --- Save celebration ---
+  // A logo-like checkmark pops in the middle of the screen (blue for weight) plus
+  // a light haptic where supported — the moment of reward for showing up.
+  var savePop = document.getElementById("save-pop");
+  function prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+  function celebrate(kind) {
+    savePop.classList.remove("go");
+    savePop.classList.toggle("weight", kind === "weight");
+    void savePop.offsetWidth; // restart the animation if one is still running
+    savePop.classList.add("go");
+    try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) { /* no haptics */ }
+  }
 
   // --- CSV export ---
   // Quote every field and double any embedded quotes so commas, quotes and
@@ -2192,16 +2412,32 @@
     renderTable();
     renderWeightTable();
     renderTodayStat();
+    renderQuickLog();
     exportBtn.disabled = entries.length === 0;
     weightExportBtn.disabled = weightEntries.length === 0;
   }
 
+  // Today's total counts up/down to its new value (instant on first paint or
+  // with reduced motion).
+  var todayShown = null, todayAnim = 0;
+  function paintToday(v) { todayValueEl.innerHTML = fmtNum(v) + "<span>cal</span>"; }
   function renderTodayStat() {
     var today = dateStr(new Date());
     var total = entries.reduce(function (sum, en) {
       return en.date === today ? sum + en.estimatedCalories : sum;
     }, 0);
-    todayValueEl.innerHTML = total + "<span>cal</span>";
+    var from = todayShown;
+    todayShown = total;
+    cancelAnimationFrame(todayAnim);
+    if (from == null || from === total || prefersReducedMotion()) { paintToday(total); return; }
+    var start = 0;
+    function step(ts) {
+      if (!start) start = ts;
+      var k = Math.min(1, (ts - start) / 550), eased = 1 - Math.pow(1 - k, 3);
+      paintToday(Math.round(from + (total - from) * eased));
+      if (k < 1) todayAnim = requestAnimationFrame(step);
+    }
+    todayAnim = requestAnimationFrame(step);
   }
 
   // Parts of the day (by meal hour). "Night" wraps past midnight (21:00–04:59):
