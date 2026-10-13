@@ -1083,32 +1083,86 @@
   .ql-chip .ql-edit:hover, .ql-chip .ql-edit:active { background: var(--bg-2); color: var(--text); }
   @media (max-width: 560px) { .ql-row { margin: 0 -18px; padding: 2px 18px 6px; scroll-padding: 0 18px; } }
 
-  /* Floating "+" (mobile only): shown once the Add entry card scrolls out of view.
-     Toasts lift above it while it's showing. */
-  .fab {
-    position: fixed;
-    right: 18px;
-    bottom: calc(18px + env(safe-area-inset-bottom));
-    z-index: 80;
-    width: 58px; height: 58px;
-    border-radius: 50%;
-    border: none;
-    background: var(--accent);
-    color: #fff;
-    font-family: var(--font-display);
-    font-size: 34px; font-weight: 500; line-height: 1;
-    box-shadow: 0 12px 24px -8px rgba(16, 132, 126, .7), inset 0 1.5px 0 rgba(255, 255, 255, .35);
-    cursor: pointer;
-    display: none;
-    align-items: center; justify-content: center;
-    padding-bottom: 3px;
+  /* Tab bar: Today · Log · Trends · History. A fixed bottom bar on mobile (the
+     raised teal "+" is the Log tab, replacing a floating button) and a pill under
+     the header on desktop. Hidden on mobile while typing, so it can never sit on
+     top of the field being filled in (Android lifts fixed bars above the keyboard). */
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 85;
+    display: flex; align-items: flex-end; justify-content: space-around;
+    background: rgba(253, 250, 244, .94);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
   }
-  .fab.weight { background: var(--weight); box-shadow: 0 12px 24px -8px rgba(37, 88, 200, .7), inset 0 1.5px 0 rgba(255, 255, 255, .35); }
-  .fab:active { transform: scale(.94); }
+  .tab {
+    flex: 1; border: none; background: none; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-family: var(--font-display); font-size: 11.5px; font-weight: 600;
+    color: var(--muted); padding: 4px 0 2px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tab svg { width: 24px; height: 24px; }
+  .tab[aria-selected="true"] { color: var(--accent-d); }
+  .tab-plus {
+    width: 46px; height: 46px; margin-top: -20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 34% 28%, #6fd3cb 0%, var(--accent) 60%, var(--accent-d) 100%);
+    color: #fff; font-size: 30px; font-weight: 500; line-height: 1; padding-bottom: 3px;
+    box-shadow: 0 10px 20px -8px rgba(16, 132, 126, .75), inset 0 1.5px 0 rgba(255, 255, 255, .35), 0 0 0 4px rgba(253, 250, 244, .94);
+  }
+  .tab-log[aria-selected="true"] .tab-plus { box-shadow: 0 6px 14px -6px rgba(16, 132, 126, .9), inset 0 2px 5px rgba(17, 64, 43, .45), 0 0 0 4px rgba(253, 250, 244, .94); }
   @media (max-width: 560px) {
-    .fab-on .fab { display: flex; }
-    .fab-on .toast-host { bottom: calc(90px + env(safe-area-inset-bottom)); }
+    /* Scrolling an element into view (or the browser scrolling to a focused
+       field) keeps it above the fixed tab bar. */
+    html { scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+    .container { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+    .toast-host { bottom: calc(84px + env(safe-area-inset-bottom)); }
+    body.kb-open .tabbar { display: none; }
+    body.kb-open .toast-host { bottom: calc(18px + env(safe-area-inset-bottom)); }
   }
+  @media (min-width: 561px) {
+    .tabbar {
+      position: sticky; top: 10px; bottom: auto; z-index: 60;
+      max-width: 520px; margin: -8px auto 22px; padding: 4px;
+      align-items: center; border: 1px solid var(--border); border-radius: 15px;
+      box-shadow: var(--shadow-3d);
+    }
+    .tab { flex-direction: row; justify-content: center; gap: 7px; font-size: 14.5px; padding: 8px 0; border-radius: 11px; }
+    .tab svg { width: 18px; height: 18px; }
+    .tab[aria-selected="true"] { background: #fff; box-shadow: var(--shadow-sm); }
+    .tab-plus { width: 20px; height: 20px; margin: 0; font-size: 18px; padding-bottom: 2px; box-shadow: none; }
+    .tab-log[aria-selected="true"] .tab-plus { box-shadow: none; }
+  }
+
+  /* "Log again" card (Today tab) and the reminders nudge. */
+  .ql-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .ql-card-head h2 { margin: 0; }
+  .ql-card .ql-row { padding-bottom: 2px; }
+  .nudge { display: flex; gap: 12px; align-items: flex-start; }
+  .nudge-icon { font-size: 22px; line-height: 1.2; }
+  .nudge-text { font-size: 14px; color: var(--text); }
+  .nudge-text span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .nudge-actions { display: flex; align-items: center; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+  .first-log { margin-top: 16px; width: 100%; }
+
+  /* Reminders sheet rows (reuses .sheet). */
+  .rm-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
+  .rm-item { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 13px; background: #fffdfb; }
+  .rm-item label { flex: 1; margin: 0; display: flex; align-items: center; gap: 10px; font-size: 14.5px; cursor: pointer; }
+  .rm-item input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
+  .rm-item input[type="time"] { width: 136px; padding: 7px 9px; }
+  .sheet-note { font-size: 13px; color: var(--muted); margin: -4px 0 14px; }
+  .sheet-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sheet-actions .btn { flex: 1; }
+
+  /* First-run welcome (reuses .sheet). */
+  .welcome-art { width: 76px; height: 76px; border-radius: 20px; display: block; margin: 4px auto 14px; box-shadow: 0 6px 16px rgba(74, 60, 42, .16); }
+  .welcome h2 { text-align: center; font-size: 21px; margin: 0 0 8px; }
+  .welcome p { text-align: center; color: var(--muted); font-size: 14.5px; margin: 0 auto 18px; max-width: 360px; }
+  .welcome-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 16px; }
+  .welcome-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+  .welcome-dots i.on { background: var(--accent); width: 18px; border-radius: 999px; }
 
   /* Save celebration: a logo-like checkmark that pops in the middle of the
      screen for a moment. Never interactive, never blocks anything. */
@@ -1171,280 +1225,320 @@
     </button>
   </header>
 
-  <!-- 0. Today panel -->
-  <section class="card today-card" id="today-card">
-    <div class="today-head">
-      <h2>Today</h2>
-      <div class="today-head-right">
-        <button type="button" class="week-btn hidden" id="week-btn">Your week ›</button>
-        <span class="today-date" id="today-date"></span>
-      </div>
-    </div>
-    <div class="today-body">
-      <div class="ring-wrap">
-        <svg class="today-ring" viewBox="0 0 120 120" aria-hidden="true">
-          <circle class="ring-track" cx="60" cy="60" r="50" />
-          <circle class="ring-fill" id="ring-fill" cx="60" cy="60" r="50" transform="rotate(-90 60 60)" />
-        </svg>
-        <div class="ring-center">
-          <div class="ring-num" id="ring-num">0</div>
-          <div class="ring-unit">cal</div>
+  <!-- Tab bar: bottom bar on mobile, a pill under the header on desktop.
+       Hash-routed (#today, #log, #trends, #history) so Back works. -->
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="Sections">
+    <button type="button" class="tab" role="tab" id="tab-today" data-tab="today" aria-controls="panel-today" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 3.8a8.2 8.2 0 0 1 8.2 8.2" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></svg><span>Today</span></button>
+    <button type="button" class="tab tab-log" role="tab" id="tab-log" data-tab="log" aria-controls="panel-log" aria-selected="false"><span class="tab-plus" aria-hidden="true">+</span><span>Log</span></button>
+    <button type="button" class="tab" role="tab" id="tab-trends" data-tab="trends" aria-controls="panel-trends" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11" width="4" height="9" rx="1.6" fill="currentColor"/><rect x="10" y="6" width="4" height="14" rx="1.6" fill="currentColor"/><rect x="16" y="13" width="4" height="7" rx="1.6" fill="currentColor"/></svg><span>Trends</span></button>
+    <button type="button" class="tab" role="tab" id="tab-history" data-tab="history" aria-controls="panel-history" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.5h14M5 12h14M5 17.5h9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>History</span></button>
+  </nav>
+
+  <div class="tab-panel" id="panel-today" role="tabpanel" aria-labelledby="tab-today">
+    <!-- 0. Today panel -->
+    <section class="card today-card" id="today-card">
+      <div class="today-head">
+        <h2>Today</h2>
+        <div class="today-head-right">
+          <button type="button" class="week-btn hidden" id="week-btn">Your week ›</button>
+          <span class="today-date" id="today-date"></span>
         </div>
       </div>
-      <div class="today-stats">
-        <div class="ts-streak hidden" id="ts-streak"></div>
-        <div class="ts-usual" id="ts-usual"></div>
-        <div class="ts-chips">
-          <span class="ts-chip"><b id="ts-meals">0</b> <span id="ts-meals-label">logged</span></span>
-          <span class="ts-chip healthy hidden" id="ts-healthy-chip"><b id="ts-healthy">0%</b> healthy</span>
+      <div class="today-body">
+        <div class="ring-wrap">
+          <svg class="today-ring" viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="ring-track" cx="60" cy="60" r="50" />
+            <circle class="ring-fill" id="ring-fill" cx="60" cy="60" r="50" transform="rotate(-90 60 60)" />
+          </svg>
+          <div class="ring-center">
+            <div class="ring-num" id="ring-num">0</div>
+            <div class="ring-unit">cal</div>
+          </div>
         </div>
-        <div class="fast hidden" id="fast">
-          <div class="fast-line">Fasting <b id="fast-time">0m</b></div>
-          <div class="fast-since" id="fast-since"></div>
-          <div class="fast-bar"><i id="fast-fill"></i></div>
-          <div class="fast-marks"><span id="fast-m12" style="left:75%">12h</span><span id="fast-m16" style="left:100%;transform:translateX(-100%)">16h</span></div>
-        </div>
-      </div>
-    </div>
-    <div class="insight hidden" id="insight">
-      <span class="insight-icon" aria-hidden="true">💡</span>
-      <span class="insight-text" id="insight-text"></span>
-      <button type="button" class="insight-next hidden" id="insight-next" aria-label="Next insight">›</button>
-    </div>
-  </section>
-
-  <!-- 0b. Weekly recap (Mondays, or on demand from "Your week") -->
-  <section class="card recap-card hidden" id="recap-card" aria-live="polite">
-    <div class="recap-head">
-      <div>
-        <div class="recap-kicker" id="recap-kicker"></div>
-        <h2 id="recap-title"></h2>
-      </div>
-      <button type="button" class="sheet-close" id="recap-close" aria-label="Close week in review">✕</button>
-    </div>
-    <div class="recap-grid" id="recap-grid"></div>
-    <div class="recap-foot" id="recap-foot"></div>
-  </section>
-
-  <!-- 1. Entry form -->
-  <section class="card" id="entry-card">
-    <h2>Add entry</h2>
-    <div class="entry-toggle" id="entry-toggle">
-      <button type="button" data-mode="calories" class="active">Calories</button>
-      <button type="button" data-mode="weight">Weight</button>
-    </div>
-    <div id="editing-banner" class="editing-banner hidden">Editing entry — make your changes and click Update.</div>
-    <form id="entry-form" novalidate>
-      <div class="quick-log hidden" id="quick-log">
-        <div class="ql-label">Quick log</div>
-        <div class="ql-row" id="quick-log-row"></div>
-      </div>
-
-      <div class="field">
-        <label for="what">What</label>
-        <div class="autocomplete-wrap">
-          <input type="text" id="what" placeholder="e.g. Chicken sandwich, Coffee, Pizza" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="what-suggestions" aria-autocomplete="list" />
-          <ul id="what-suggestions" class="autocomplete hidden" role="listbox"></ul>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Category</label>
-        <div class="segmented" id="category-group"></div>
-      </div>
-
-      <div class="field">
-        <label>Self assessment <span class="optional-note">(optional)</span>
-          <button type="button" id="self-clear" class="mini-clear hidden">Clear</button>
-        </label>
-        <div class="slider-field" id="self-field">
-          <div class="slider-readout" id="self-readout">Not rated</div>
-          <input type="range" id="self-slider" min="0" max="3" step="1" value="0"
-                 aria-label="Self assessment" aria-valuetext="Not rated" />
-          <div class="slider-ticks" id="self-ticks">
-            <span>Nasty</span><span>Okay</span><span>Healthy-ish</span><span>Healthy</span>
+        <div class="today-stats">
+          <div class="ts-streak hidden" id="ts-streak"></div>
+          <div class="ts-usual" id="ts-usual"></div>
+          <div class="ts-chips">
+            <span class="ts-chip"><b id="ts-meals">0</b> <span id="ts-meals-label">logged</span></span>
+            <span class="ts-chip healthy hidden" id="ts-healthy-chip"><b id="ts-healthy">0%</b> healthy</span>
+          </div>
+          <div class="fast hidden" id="fast">
+            <div class="fast-line">Fasting <b id="fast-time">0m</b></div>
+            <div class="fast-since" id="fast-since"></div>
+            <div class="fast-bar"><i id="fast-fill"></i></div>
+            <div class="fast-marks"><span id="fast-m12" style="left:75%">12h</span><span id="fast-m16" style="left:100%;transform:translateX(-100%)">16h</span></div>
           </div>
         </div>
       </div>
-
-      <div class="field">
-        <label>Prep mode <span class="optional-note">(optional)</span></label>
-        <div class="segmented" id="prep-group"></div>
+      <div class="insight hidden" id="insight">
+        <span class="insight-icon" aria-hidden="true">💡</span>
+        <span class="insight-text" id="insight-text"></span>
+        <button type="button" class="insight-next hidden" id="insight-next" aria-label="Next insight">›</button>
       </div>
+      <button type="button" class="btn btn-primary first-log hidden" id="first-log-btn">Log your first meal</button>
+    </section>
 
-      <div class="field">
-        <label for="date">Date</label>
-        <input type="date" id="date" />
-        <div class="quick">
-          <button type="button" data-date="today">Today</button>
-          <button type="button" data-date="yesterday">Yesterday</button>
+    <!-- 0b. Weekly recap (Mondays, or on demand from "Your week") -->
+    <section class="card recap-card hidden" id="recap-card" aria-live="polite">
+      <div class="recap-head">
+        <div>
+          <div class="recap-kicker" id="recap-kicker"></div>
+          <h2 id="recap-title"></h2>
+        </div>
+        <button type="button" class="sheet-close" id="recap-close" aria-label="Close week in review">✕</button>
+      </div>
+      <div class="recap-grid" id="recap-grid"></div>
+      <div class="recap-foot" id="recap-foot"></div>
+    </section>
+
+    <!-- Quick log on the home tab: one tap to log a usual item again. -->
+    <section class="card ql-card hidden" id="ql-card">
+      <div class="ql-card-head">
+        <h2>Log again</h2>
+        <button type="button" class="week-btn" id="ql-new">+ New entry</button>
+      </div>
+      <div class="ql-row" id="quick-log-row-today"></div>
+    </section>
+
+    <!-- 1b. Consistency heatmap (last 12 weeks) -->
+    <section class="card" id="heatmap-card">
+      <div class="hm-head">
+        <h2>Consistency</h2>
+        <span class="hm-summary" id="hm-summary"></span>
+      </div>
+      <div class="hm-wrap">
+        <div class="hm-months" id="hm-months"></div>
+        <div class="hm-grid" id="hm-grid"></div>
+      </div>
+      <div class="hm-legend">
+        <span>Logged<span class="sw"><i style="background:#cfe9e5"></i><i style="background:#dcefd0"></i><i style="background:#b4dc9f"></i><i style="background:#7fc46a"></i><i style="background:#2f9e6e"></i></span>healthier</span>
+        <span><span class="dot"></span>weigh-in</span>
+      </div>
+    </section>
+
+    <!-- Reminders nudge: offered once the habit has started, until set up or dismissed. -->
+    <section class="card nudge-card hidden" id="remind-card">
+      <div class="nudge">
+        <div class="nudge-icon" aria-hidden="true">🔔</div>
+        <div class="nudge-text"><b>Want a gentle daily nudge?</b><span>Add reminders to your calendar — no account, nothing leaves this device.</span></div>
+      </div>
+      <div class="nudge-actions">
+        <button type="button" class="btn btn-primary" id="remind-open">Set up reminders</button>
+        <button type="button" class="mini-clear" id="remind-dismiss">Not now</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="tab-panel hidden" id="panel-log" role="tabpanel" aria-labelledby="tab-log">
+    <!-- 1. Entry form -->
+    <section class="card" id="entry-card">
+      <h2>Add entry</h2>
+      <div class="entry-toggle" id="entry-toggle">
+        <button type="button" data-mode="calories" class="active">Calories</button>
+        <button type="button" data-mode="weight">Weight</button>
+      </div>
+      <div id="editing-banner" class="editing-banner hidden">Editing entry — make your changes and click Update.</div>
+      <form id="entry-form" novalidate>
+        <div class="quick-log hidden" id="quick-log">
+          <div class="ql-label">Quick log</div>
+          <div class="ql-row" id="quick-log-row"></div>
+        </div>
+
+        <div class="field">
+          <label for="what">What</label>
+          <div class="autocomplete-wrap">
+            <input type="text" id="what" placeholder="e.g. Chicken sandwich, Coffee, Pizza" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="what-suggestions" aria-autocomplete="list" />
+            <ul id="what-suggestions" class="autocomplete hidden" role="listbox"></ul>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Category</label>
+          <div class="segmented" id="category-group"></div>
+        </div>
+
+        <div class="field">
+          <label>Self assessment <span class="optional-note">(optional)</span>
+            <button type="button" id="self-clear" class="mini-clear hidden">Clear</button>
+          </label>
+          <div class="slider-field" id="self-field">
+            <div class="slider-readout" id="self-readout">Not rated</div>
+            <input type="range" id="self-slider" min="0" max="3" step="1" value="0"
+                   aria-label="Self assessment" aria-valuetext="Not rated" />
+            <div class="slider-ticks" id="self-ticks">
+              <span>Nasty</span><span>Okay</span><span>Healthy-ish</span><span>Healthy</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Prep mode <span class="optional-note">(optional)</span></label>
+          <div class="segmented" id="prep-group"></div>
+        </div>
+
+        <div class="field">
+          <label for="date">Date</label>
+          <input type="date" id="date" />
+          <div class="quick">
+            <button type="button" data-date="today">Today</button>
+            <button type="button" data-date="yesterday">Yesterday</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Time</label>
+          <div class="clock-head">
+            <button type="button" class="clock-toggle" id="time-adjust" aria-expanded="false">
+              <span id="time-readout">—</span>
+            </button>
+          </div>
+          <div class="quick time-quick">
+            <button type="button" data-time="0">Now</button>
+            <button type="button" data-time="30">30 mins ago</button>
+            <button type="button" data-time="60">1h ago</button>
+          </div>
+          <div class="clock-wrap hidden" id="time-clock"></div>
+          <input type="hidden" id="time" />
+        </div>
+
+        <div class="field">
+          <label for="calories">Estimated cals</label>
+          <input type="number" id="calories" min="1" step="1" placeholder="e.g. 550" />
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary" id="save-btn">Save entry</button>
+          <button type="button" class="btn btn-ghost hidden" id="cancel-btn">Cancel</button>
+        </div>
+        <div class="error" id="error" role="alert"></div>
+      </form>
+
+      <!-- Weight input zone (shown when the "Weight" toggle is active) -->
+      <form id="weight-form" class="hidden" novalidate>
+        <div id="weight-editing-banner" class="editing-banner hidden">Editing weight — make your changes and click Update.</div>
+        <div class="field">
+          <label for="weight-kg">Weight (kg)</label>
+          <input type="text" id="weight-kg" inputmode="decimal" placeholder="e.g. 72.5" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label>pre-BM?</label>
+          <div class="segmented" id="prebm-group"></div>
+        </div>
+
+        <div class="field">
+          <label for="weight-date">Date</label>
+          <input type="date" id="weight-date" />
+          <div class="quick">
+            <button type="button" data-wdate="today">Today</button>
+            <button type="button" data-wdate="yesterday">Yesterday</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Time</label>
+          <div class="clock-head">
+            <button type="button" class="clock-toggle" id="weight-time-adjust" aria-expanded="false">
+              <span id="weight-time-readout">—</span>
+            </button>
+          </div>
+          <div class="quick time-quick">
+            <button type="button" data-wtime="0">Now</button>
+            <button type="button" data-wtime="30">30 mins ago</button>
+            <button type="button" data-wtime="60">1h ago</button>
+          </div>
+          <div class="clock-wrap hidden" id="weight-time-clock"></div>
+          <input type="hidden" id="weight-time" />
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary" id="weight-save-btn">Save weight</button>
+          <button type="button" class="btn btn-ghost hidden" id="weight-cancel-btn">Cancel</button>
+        </div>
+        <div class="error" id="weight-error" role="alert"></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="tab-panel hidden" id="panel-trends" role="tabpanel" aria-labelledby="tab-trends">
+    <!-- 2. Charts (toggle between views) -->
+    <section class="card">
+      <div class="chart-head">
+        <div class="chart-toggle" id="chart-toggle">
+          <button type="button" data-chart="day" class="active">Per day</button>
+          <button type="button" data-chart="hour">Time of day</button>
+        </div>
+        <div class="daypicker hidden" id="daypicker">
+          <button type="button" class="day-nav" id="day-prev" aria-label="Previous day">‹</button>
+          <button type="button" class="btn btn-ghost" id="day-btn">Today</button>
+          <button type="button" class="day-nav" id="day-next" aria-label="Next day">›</button>
+          <div class="day-pop hidden" id="day-pop"></div>
         </div>
       </div>
+      <div class="chart-wrap" id="chart"></div>
+    </section>
+  </div>
 
-      <div class="field">
-        <label>Time</label>
-        <div class="clock-head">
-          <button type="button" class="clock-toggle" id="time-adjust" aria-expanded="false">
-            <span id="time-readout">—</span>
-          </button>
+  <div class="tab-panel hidden" id="panel-history" role="tabpanel" aria-labelledby="tab-history">
+    <!-- 3. Entries table -->
+    <section class="card" id="entries-card">
+      <div class="section-head">
+        <div class="section-head-left">
+          <h2>Entries</h2>
+          <button type="button" class="filter-chip hidden" id="table-filter"></button>
         </div>
-        <div class="quick time-quick">
-          <button type="button" data-time="0">Now</button>
-          <button type="button" data-time="30">30 mins ago</button>
-          <button type="button" data-time="60">1h ago</button>
-        </div>
-        <div class="clock-wrap hidden" id="time-clock"></div>
-        <input type="hidden" id="time" />
-      </div>
-
-      <div class="field">
-        <label for="calories">Estimated cals</label>
-        <input type="number" id="calories" min="1" step="1" placeholder="e.g. 550" />
-      </div>
-
-      <div class="actions">
-        <button type="submit" class="btn btn-primary" id="save-btn">Save entry</button>
-        <button type="button" class="btn btn-ghost hidden" id="cancel-btn">Cancel</button>
-      </div>
-      <div class="error" id="error" role="alert"></div>
-    </form>
-
-    <!-- Weight input zone (shown when the "Weight" toggle is active) -->
-    <form id="weight-form" class="hidden" novalidate>
-      <div id="weight-editing-banner" class="editing-banner hidden">Editing weight — make your changes and click Update.</div>
-      <div class="field">
-        <label for="weight-kg">Weight (kg)</label>
-        <input type="text" id="weight-kg" inputmode="decimal" placeholder="e.g. 72.5" autocomplete="off" />
-      </div>
-
-      <div class="field">
-        <label>pre-BM?</label>
-        <div class="segmented" id="prebm-group"></div>
-      </div>
-
-      <div class="field">
-        <label for="weight-date">Date</label>
-        <input type="date" id="weight-date" />
-        <div class="quick">
-          <button type="button" data-wdate="today">Today</button>
-          <button type="button" data-wdate="yesterday">Yesterday</button>
+        <div class="export-wrap">
+          <button type="button" class="btn btn-ghost" id="export-btn">Export CSV</button>
+          <div class="export-pop hidden" id="export-pop">
+            <div class="export-title">Export entries</div>
+            <label class="export-field">From <input type="date" id="export-from" /></label>
+            <label class="export-field">To <input type="date" id="export-to" /></label>
+            <div class="export-hint">Leave blank to export everything.</div>
+            <div class="export-note hidden" id="export-note">No entries in that range.</div>
+            <button type="button" class="btn btn-primary" id="export-go">Download CSV</button>
+          </div>
         </div>
       </div>
+      <div id="table-wrap"></div>
+    </section>
 
-      <div class="field">
-        <label>Time</label>
-        <div class="clock-head">
-          <button type="button" class="clock-toggle" id="weight-time-adjust" aria-expanded="false">
-            <span id="weight-time-readout">—</span>
-          </button>
+    <!-- 4. Weight log table -->
+    <section class="card">
+      <div class="section-head">
+        <div class="section-head-left">
+          <h2>Weight log</h2>
+          <button type="button" class="filter-chip hidden" id="weight-table-filter"></button>
         </div>
-        <div class="quick time-quick">
-          <button type="button" data-wtime="0">Now</button>
-          <button type="button" data-wtime="30">30 mins ago</button>
-          <button type="button" data-wtime="60">1h ago</button>
-        </div>
-        <div class="clock-wrap hidden" id="weight-time-clock"></div>
-        <input type="hidden" id="weight-time" />
-      </div>
-
-      <div class="actions">
-        <button type="submit" class="btn btn-primary" id="weight-save-btn">Save weight</button>
-        <button type="button" class="btn btn-ghost hidden" id="weight-cancel-btn">Cancel</button>
-      </div>
-      <div class="error" id="weight-error" role="alert"></div>
-    </form>
-  </section>
-
-  <!-- 1b. Consistency heatmap (last 12 weeks) -->
-  <section class="card" id="heatmap-card">
-    <div class="hm-head">
-      <h2>Consistency</h2>
-      <span class="hm-summary" id="hm-summary"></span>
-    </div>
-    <div class="hm-wrap">
-      <div class="hm-months" id="hm-months"></div>
-      <div class="hm-grid" id="hm-grid"></div>
-    </div>
-    <div class="hm-legend">
-      <span>Logged<span class="sw"><i style="background:#cfe9e5"></i><i style="background:#dcefd0"></i><i style="background:#b4dc9f"></i><i style="background:#7fc46a"></i><i style="background:#2f9e6e"></i></span>healthier</span>
-      <span><span class="dot"></span>weigh-in</span>
-    </div>
-  </section>
-
-  <!-- 2. Charts (toggle between views) -->
-  <section class="card">
-    <div class="chart-head">
-      <div class="chart-toggle" id="chart-toggle">
-        <button type="button" data-chart="day" class="active">Per day</button>
-        <button type="button" data-chart="hour">Time of day</button>
-      </div>
-      <div class="daypicker hidden" id="daypicker">
-        <button type="button" class="day-nav" id="day-prev" aria-label="Previous day">‹</button>
-        <button type="button" class="btn btn-ghost" id="day-btn">Today</button>
-        <button type="button" class="day-nav" id="day-next" aria-label="Next day">›</button>
-        <div class="day-pop hidden" id="day-pop"></div>
-      </div>
-    </div>
-    <div class="chart-wrap" id="chart"></div>
-  </section>
-
-  <!-- 3. Entries table -->
-  <section class="card" id="entries-card">
-    <div class="section-head">
-      <div class="section-head-left">
-        <h2>Entries</h2>
-        <button type="button" class="filter-chip hidden" id="table-filter"></button>
-      </div>
-      <div class="export-wrap">
-        <button type="button" class="btn btn-ghost" id="export-btn">Export CSV</button>
-        <div class="export-pop hidden" id="export-pop">
-          <div class="export-title">Export entries</div>
-          <label class="export-field">From <input type="date" id="export-from" /></label>
-          <label class="export-field">To <input type="date" id="export-to" /></label>
-          <div class="export-hint">Leave blank to export everything.</div>
-          <div class="export-note hidden" id="export-note">No entries in that range.</div>
-          <button type="button" class="btn btn-primary" id="export-go">Download CSV</button>
+        <div class="export-wrap">
+          <button type="button" class="btn btn-ghost" id="weight-export-btn">Export CSV</button>
+          <div class="export-pop hidden" id="weight-export-pop">
+            <div class="export-title">Export weight log</div>
+            <label class="export-field">From <input type="date" id="weight-export-from" /></label>
+            <label class="export-field">To <input type="date" id="weight-export-to" /></label>
+            <div class="export-hint">Leave blank to export everything.</div>
+            <div class="export-note hidden" id="weight-export-note">No entries in that range.</div>
+            <button type="button" class="btn btn-primary" id="weight-export-go">Download CSV</button>
+          </div>
         </div>
       </div>
-    </div>
-    <div id="table-wrap"></div>
-  </section>
+      <div id="weight-table-wrap"></div>
+    </section>
 
-  <!-- 4. Weight log table -->
-  <section class="card">
-    <div class="section-head">
-      <div class="section-head-left">
-        <h2>Weight log</h2>
-        <button type="button" class="filter-chip hidden" id="weight-table-filter"></button>
+    <!-- 5. Your data: backup / restore (everything lives only in this browser) -->
+    <section class="card">
+      <h2>Your data</h2>
+      <p class="data-note">Everything is stored only in this browser. Keep a backup so your history is safe if it's ever cleared. Reminders are added to your own calendar.</p>
+      <div class="data-actions">
+        <button type="button" class="btn btn-ghost" id="backup-btn">Download backup</button>
+        <button type="button" class="btn btn-ghost" id="restore-btn">Restore from backup</button>
+        <button type="button" class="btn btn-ghost" id="reminders-btn">Calendar reminders</button>
+        <input type="file" id="restore-file" accept="application/json,.json" class="hidden" />
       </div>
-      <div class="export-wrap">
-        <button type="button" class="btn btn-ghost" id="weight-export-btn">Export CSV</button>
-        <div class="export-pop hidden" id="weight-export-pop">
-          <div class="export-title">Export weight log</div>
-          <label class="export-field">From <input type="date" id="weight-export-from" /></label>
-          <label class="export-field">To <input type="date" id="weight-export-to" /></label>
-          <div class="export-hint">Leave blank to export everything.</div>
-          <div class="export-note hidden" id="weight-export-note">No entries in that range.</div>
-          <button type="button" class="btn btn-primary" id="weight-export-go">Download CSV</button>
-        </div>
-      </div>
-    </div>
-    <div id="weight-table-wrap"></div>
-  </section>
+    </section>
+  </div>
 
-  <!-- 5. Your data: backup / restore (everything lives only in this browser) -->
-  <section class="card">
-    <h2>Your data</h2>
-    <p class="data-note">Everything is stored only in this browser. Keep a backup so your history is safe if it's ever cleared.</p>
-    <div class="data-actions">
-      <button type="button" class="btn btn-ghost" id="backup-btn">Download backup</button>
-      <button type="button" class="btn btn-ghost" id="restore-btn">Restore from backup</button>
-      <input type="file" id="restore-file" accept="application/json,.json" class="hidden" />
-    </div>
-  </section>
 </div>
 <div class="toast-host" id="toast-host" aria-live="polite"></div>
-<button type="button" class="fab" id="fab" aria-label="Log something">+</button>
 <div class="save-pop" id="save-pop" aria-hidden="true">
   <svg viewBox="0 0 50 50"><path d="M12 26 L21 35 L38 15" /></svg>
 </div>
@@ -1830,7 +1924,7 @@
   // recap dismissed, onboarding seen). Its own key — never mixed into the data
   // stores above. Unknown/missing fields fall back to the defaults.
   function defaultHabitState() {
-    return { milestones: {}, recapDismissed: "", onboarded: false, fastSeen: "" };
+    return { milestones: {}, recapDismissed: "", onboarded: false, fastSeen: "", remindersSet: false, remindDismissed: false };
   }
   function normalizeHabitState(s) {
     var d = defaultHabitState();
@@ -1843,6 +1937,8 @@
     if (typeof s.recapDismissed === "string") d.recapDismissed = s.recapDismissed;
     if (s.onboarded === true) d.onboarded = true;
     if (typeof s.fastSeen === "string") d.fastSeen = s.fastSeen;
+    if (s.remindersSet === true) d.remindersSet = true;
+    if (s.remindDismissed === true) d.remindDismissed = true;
     return d;
   }
   function loadHabitState() {
@@ -2121,6 +2217,7 @@
       return;
     }
     var v = result.value;
+    var wasEdit = !!editingId;
 
     if (editingId) {
       var existing = findRecord("food", editingId);
@@ -2142,9 +2239,10 @@
       addEntry(v);
     }
     resetForm();
+    if (wasEdit) finishEdit();
   });
 
-  cancelBtn.addEventListener("click", resetForm);
+  cancelBtn.addEventListener("click", function () { resetForm(); finishEdit(); });
 
   // Quick date buttons
   document.querySelectorAll("[data-date]").forEach(function (btn) {
@@ -2174,7 +2272,6 @@
     var isCal = mode === "calories";
     form.classList.toggle("hidden", !isCal);
     weightForm.classList.toggle("hidden", isCal);
-    fab.classList.toggle("weight", !isCal);
     // Each form shows its own editing banner only while active + editing.
     editingBanner.classList.toggle("hidden", !(isCal && editingId));
     weightEditingBanner.classList.toggle("hidden", !(!isCal && editingWeightId));
@@ -2267,6 +2364,7 @@
       render();
       resetWeightForm();
       if (before) showToast("Updated weigh-in · " + fmtWeight(kg), "Undo", function () { restoreRecord("weight", before); });
+      finishEdit();
     } else {
       var rec = { id: newId(), weightKg: kg, preBM: preBM, date: date, time: time, timestamp: timestamp };
       weightEntries.push(rec);
@@ -2278,7 +2376,7 @@
       showToast("Weight logged · " + fmtWeight(kg), "Undo", function () { discardRecord("weight", rec.id); });
     }
   });
-  weightCancelBtn.addEventListener("click", resetWeightForm);
+  weightCancelBtn.addEventListener("click", function () { resetWeightForm(); finishEdit(); });
 
   // Entries sorted by timestamp, newest first (shared by table + CSV export).
   function sortedNewestFirst() {
@@ -2390,8 +2488,11 @@
   // One-tap chips for the foods you log most, favouring what you usually have at
   // this time of day. A tap logs it straight away at "now" with its usual details
   // (Undo is in the toast); the ✎ half loads it into the form to tweak first.
+  // Rendered in two places: the top of the calorie form and the Today tab's
+  // "Log again" card (same items, same handlers).
   var quickLogEl = document.getElementById("quick-log");
-  var quickLogRow = document.getElementById("quick-log-row");
+  var quickLogCard = document.getElementById("ql-card");
+  var quickRows = [document.getElementById("quick-log-row"), document.getElementById("quick-log-row-today")];
   var quickItems = [];
   // Score = logs in the last 30 days, +1 more for each at the current part of day;
   // ties go to the most recently logged. Top 6.
@@ -2410,9 +2511,10 @@
     }).slice(0, 6);
   }
   function renderQuickLog() {
-    quickItems = editingId ? [] : quickLogItems();
-    quickLogEl.classList.toggle("hidden", !quickItems.length);
-    quickLogRow.innerHTML = quickItems.map(function (rec, i) {
+    quickItems = quickLogItems();
+    quickLogEl.classList.toggle("hidden", !quickItems.length || !!editingId); // not inside an open edit
+    quickLogCard.classList.toggle("hidden", !quickItems.length);
+    var html = quickItems.map(function (rec, i) {
       var name = escapeHtml(rec.what);
       return '<span class="ql-chip">' +
         '<button type="button" class="ql-log" data-ql="' + i + '" aria-label="Log ' + name + ', ' + rec.estimatedCalories + ' cal, now">' +
@@ -2420,6 +2522,7 @@
         '<button type="button" class="ql-edit" data-qledit="' + i + '" aria-label="Edit ' + name + ' before logging">✎</button>' +
         '</span>';
     }).join("");
+    quickRows.forEach(function (row) { row.innerHTML = html; });
   }
   // "Now" snapped to the quarter hour like the clock's Now button (never past 23:45).
   function quarterNowTime() {
@@ -2427,7 +2530,7 @@
     if (m === 60) { if (h === 23) m = 45; else { h++; m = 0; } }
     return pad(h) + ":" + pad(m);
   }
-  quickLogRow.addEventListener("click", function (e) {
+  function onQuickLogClick(e) {
     var logBtn = e.target.closest("[data-ql]");
     var editBtn = e.target.closest("[data-qledit]");
     if (logBtn) {
@@ -2444,25 +2547,14 @@
       });
     } else if (editBtn) {
       var r = quickItems[+editBtn.getAttribute("data-qledit")];
-      if (r) applySuggestion(r);
+      if (!r) return;
+      if (editingId) resetForm(); // ✎ starts a fresh entry, never overwrites an open edit
+      openLogTab();
+      applySuggestion(r);
     }
-  });
-
-  // --- Floating "+" (mobile) ---
-  // Appears only once the whole Add entry card is off screen, so it can never sit
-  // on top of the form's own fields; tapping it brings the form back and focuses
-  // the first field of whichever mode is active.
-  var fab = document.getElementById("fab");
-  var entryCard = document.getElementById("entry-card");
-  if ("IntersectionObserver" in window) {
-    new IntersectionObserver(function (items) {
-      document.body.classList.toggle("fab-on", !items[0].isIntersecting);
-    }).observe(entryCard);
   }
-  fab.addEventListener("click", function () {
-    (entryMode === "weight" ? weightKgEl : whatEl).focus({ preventScroll: true });
-    entryCard.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  quickRows.forEach(function (row) { row.addEventListener("click", onQuickLogClick); });
+  document.getElementById("ql-new").addEventListener("click", function () { openLogTab(); focusLogForm(); });
 
   // --- Save celebration ---
   // A logo-like checkmark pops in the middle of the screen (blue for weight) plus
@@ -2698,6 +2790,7 @@
     renderRecap();
     renderQuickLog();
     renderHeatmap();
+    renderRemindCard();
     checkMilestones();
     exportBtn.disabled = entries.length === 0;
     weightExportBtn.disabled = weightEntries.length === 0;
@@ -2845,6 +2938,7 @@
       usualEl.textContent = st.count ? "Your usual day shows up after your first full day" : "Nothing logged yet today";
     }
 
+    document.getElementById("first-log-btn").classList.toggle("hidden", !!(entries.length || weightEntries.length));
     document.getElementById("ts-meals").textContent = st.count;
     var healthyChip = document.getElementById("ts-healthy-chip");
     healthyChip.classList.toggle("hidden", st.healthyShare == null);
@@ -2962,7 +3056,9 @@
     }
     hmGrid.innerHTML = cells;
     document.getElementById("hm-months").innerHTML = months;
-    document.getElementById("hm-summary").innerHTML = "Logged <b>" + loggedCount + "</b> of the last <b>" + dayCount + "</b> days";
+    document.getElementById("hm-summary").innerHTML = loggedCount
+      ? "Logged <b>" + loggedCount + "</b> of the last <b>" + dayCount + "</b> days"
+      : "Your first logged day lights up here";
   }
   hmGrid.addEventListener("click", function (e) {
     var cell = e.target.closest("[data-hdate]");
@@ -2975,7 +3071,7 @@
     renderTable();
     renderWeightTable();
     renderHeatmap();
-    if (filterDate) document.getElementById("entries-card").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (filterDate) goTab("history"); // the filtered tables live there
   });
 
   // --- Milestones ---
@@ -3053,31 +3149,44 @@
       (earned ? "" : '<div class="ms-prog"><i style="width:' + Math.round(have / ms.n * 100) + '%"></i></div>') +
       "</span></li>";
   }
-  function openMilestones() {
-    closeMilestones();
-    var m = milestoneMetrics(), st = m.streak;
+  // Generic sheet (bottom sheet on mobile, centred panel on desktop): one at a
+  // time; closes on ✕, backdrop tap or Escape, then runs its onClose.
+  var sheetOnClose = null;
+  function openSheet(html, onClose, extraClass) {
+    closeSheet();
     sheetEl = document.createElement("div");
-    sheetEl.className = "sheet-backdrop";
-    sheetEl.innerHTML = '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ms-title">' +
+    sheetEl.className = "sheet-backdrop" + (extraClass ? " " + extraClass : "");
+    sheetEl.innerHTML = html;
+    sheetOnClose = onClose || null;
+    document.body.appendChild(sheetEl);
+    sheetEl.addEventListener("click", function (e) {
+      if (e.target === sheetEl || e.target.closest(".sheet-close")) closeSheet();
+    });
+    var close = sheetEl.querySelector(".sheet-close");
+    if (close) close.focus();
+    return sheetEl;
+  }
+  function closeSheet() {
+    if (!sheetEl) return;
+    if (sheetEl.parentNode) sheetEl.parentNode.removeChild(sheetEl);
+    sheetEl = null;
+    var cb = sheetOnClose;
+    sheetOnClose = null;
+    if (cb) cb();
+  }
+  function openMilestones() {
+    var m = milestoneMetrics(), st = m.streak;
+    openSheet('<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ms-title">' +
       '<div class="sheet-head"><h2 id="ms-title">Milestones</h2><button type="button" class="sheet-close" aria-label="Close">✕</button></div>' +
       '<div class="ms-stats">' +
         '<div class="ms-stat"><div class="k">Current streak</div><div class="v">' + st.current + "<span>" + (st.current === 1 ? "day" : "days") + "</span></div></div>" +
         '<div class="ms-stat"><div class="k">Best streak</div><div class="v">' + st.best + "<span>" + (st.best === 1 ? "day" : "days") + "</span></div></div>" +
       "</div>" +
       '<p class="ms-note">A streak counts every day you log anything — food or weight. Missing one day in a week is fine: it counts as a rest day.</p>' +
-      '<ul class="ms-list">' + MILESTONES.map(function (ms) { return milestoneItem(ms, m); }).join("") + "</ul></div>";
-    document.body.appendChild(sheetEl);
-    sheetEl.addEventListener("click", function (e) {
-      if (e.target === sheetEl || e.target.closest(".sheet-close")) closeMilestones();
-    });
-    sheetEl.querySelector(".sheet-close").focus();
-  }
-  function closeMilestones() {
-    if (sheetEl && sheetEl.parentNode) sheetEl.parentNode.removeChild(sheetEl);
-    sheetEl = null;
+      '<ul class="ms-list">' + MILESTONES.map(function (ms) { return milestoneItem(ms, m); }).join("") + "</ul></div>");
   }
   streakBadge.addEventListener("click", openMilestones);
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMilestones(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeSheet(); });
 
   // --- Insight of the day ---
   // Small, neutral observations drawn from your own data — something new to
@@ -3638,7 +3747,7 @@
     Object.keys(weightByDate).forEach(function (d) { dateSet[d] = true; });
     var dates = Object.keys(dateSet).sort();
     if (!dates.length) {
-      chart.innerHTML = '<div class="empty">No entries yet — add one above to see your daily totals.</div>';
+      chart.innerHTML = '<div class="empty">Nothing to chart yet — log your first entry and your days will show up here.</div>';
       return;
     }
     Object.keys(byDate).forEach(function (k) { byDate[k].sort(byTimeAsc); });
@@ -3962,6 +4071,7 @@
     renderTable();       // apply / clear the filter
     renderWeightTable();
     renderHeatmap();     // mirror the selected day
+    if (filterDate) showToast("Tables filtered to " + formatDateShort(filterDate), "View", function () { goTab("history"); });
   });
   function clearDayFilter() {
     filterDate = null;
@@ -4014,7 +4124,7 @@
     var wrap = document.getElementById("table-wrap");
     updateFilterChip();
     if (entries.length === 0) {
-      wrap.innerHTML = '<div class="empty">No entries yet.</div>';
+      wrap.innerHTML = '<div class="empty">No entries yet — everything you log will be listed here.</div>';
       return;
     }
 
@@ -4074,7 +4184,7 @@
     wrap.querySelectorAll("[data-edit]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var entry = entries.find(function (en) { return en.id === btn.getAttribute("data-edit"); });
-        if (entry) loadEntryIntoForm(entry);
+        if (entry) { openLogTab(currentTab); loadEntryIntoForm(entry); }
       });
     });
     wrap.querySelectorAll("[data-delete]").forEach(function (btn) {
@@ -4090,7 +4200,7 @@
     var wrap = document.getElementById("weight-table-wrap");
     updateWeightFilterChip();
     if (weightEntries.length === 0) {
-      wrap.innerHTML = '<div class="empty">No weight entries yet.</div>';
+      wrap.innerHTML = '<div class="empty">No weigh-ins yet — switch the Log tab to Weight to add one.</div>';
       return;
     }
 
@@ -4144,7 +4254,7 @@
     wrap.querySelectorAll("[data-wedit]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var entry = weightEntries.find(function (w) { return w.id === btn.getAttribute("data-wedit"); });
-        if (entry) loadWeightIntoForm(entry);
+        if (entry) { openLogTab(currentTab); loadWeightIntoForm(entry); }
       });
     });
     wrap.querySelectorAll("[data-wdelete]").forEach(function (btn) {
@@ -4168,6 +4278,228 @@
     }, { passive: false });
   });
 
+  // --- Calendar reminders (.ics) ---
+  // No server means no push notifications — so instead you get a calendar file
+  // of daily repeating events at your usual times, and your own Calendar app does
+  // the reminding. Defaults: ~30 min after you usually log each meal, and your
+  // usual weigh-in time (fallbacks when there isn't enough history yet).
+  var APP_URL = "https://paulgaica1.github.io/calorie_app/";
+  function minToTime(m) { m = ((Math.round(m / 15) * 15) % 1440 + 1440) % 1440; return pad(Math.floor(m / 60)) + ":" + pad(m % 60); }
+  function medianMin(list) {
+    if (list.length < 3) return null;
+    var a = list.slice().sort(function (x, y) { return x - y; });
+    return a[Math.floor(a.length / 2)];
+  }
+  function reminderDefaults() {
+    var since = daysBefore(dateStr(new Date()), 60);
+    function usual(cat, fallback) {
+      var m = medianMin(entries.filter(function (en) { return en.category === cat && en.date >= since; })
+        .map(function (en) { return timeToMin(en.time); }));
+      return minToTime(m == null ? fallback : m + 30);
+    }
+    var w = medianMin(weightEntries.filter(function (x) { return x.date >= since; }).map(function (x) { return timeToMin(x.time); }));
+    return [
+      { key: "breakfast", label: "Breakfast", text: "log breakfast", time: usual("Breakfast", 8 * 60 + 30), on: true },
+      { key: "lunch", label: "Lunch", text: "log lunch", time: usual("Lunch", 13 * 60), on: true },
+      { key: "dinner", label: "Dinner", text: "log dinner", time: usual("Dinner", 19 * 60 + 30), on: true },
+      { key: "weigh", label: "Weigh-in", text: "weigh in", time: minToTime(w == null ? 7 * 60 + 30 : w), on: weightEntries.length > 0 }
+    ];
+  }
+  function icsEscape(t) { return String(t).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n"); }
+  // RFC 5545: content lines over 75 octets continue on the next line after a space.
+  function icsFold(line) {
+    var out = [];
+    while (line.length > 74) { out.push(line.slice(0, 74)); line = " " + line.slice(74); }
+    out.push(line);
+    return out.join("\r\n");
+  }
+  // Daily events in *floating* local time (no time zone), so 08:30 means 08:30
+  // wherever you are. Stable UIDs, so re-importing updates rather than piles up.
+  function buildIcs(list) {
+    var now = new Date();
+    var stamp = now.getUTCFullYear() + pad(now.getUTCMonth() + 1) + pad(now.getUTCDate()) + "T" +
+      pad(now.getUTCHours()) + pad(now.getUTCMinutes()) + pad(now.getUTCSeconds()) + "Z";
+    var lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Habitrack//Reminders//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Habitrack reminders"];
+    list.forEach(function (r) {
+      var h = +r.time.slice(0, 2), m = +r.time.slice(3, 5);
+      var first = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+      if (first <= now) first.setDate(first.getDate() + 1); // next occurrence
+      var title = "Habitrack: " + r.text;
+      lines.push(
+        "BEGIN:VEVENT",
+        "UID:habitrack-" + r.key + "@paulgaica1.github.io",
+        "DTSTAMP:" + stamp,
+        "DTSTART:" + first.getFullYear() + pad(first.getMonth() + 1) + pad(first.getDate()) + "T" + pad(h) + pad(m) + "00",
+        "DURATION:PT5M",
+        "RRULE:FREQ=DAILY",
+        "SUMMARY:" + icsEscape(title),
+        "DESCRIPTION:" + icsEscape("A quick log keeps your streak going. " + APP_URL),
+        "URL:" + APP_URL,
+        "TRANSP:TRANSPARENT",
+        "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + icsEscape(title), "TRIGGER:PT0M", "END:VALARM",
+        "END:VEVENT"
+      );
+    });
+    lines.push("END:VCALENDAR");
+    return lines.map(icsFold).join("\r\n") + "\r\n";
+  }
+  function openReminders() {
+    var list = reminderDefaults();
+    var rows = list.map(function (r) {
+      return '<li class="rm-item"><label><input type="checkbox" data-rm="' + r.key + '"' + (r.on ? " checked" : "") + " /> " + r.label + "</label>" +
+        '<input type="time" step="900" data-rmt="' + r.key + '" value="' + r.time + '" aria-label="' + r.label + ' reminder time" /></li>';
+    }).join("");
+    var el = openSheet('<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rm-title">' +
+      '<div class="sheet-head"><h2 id="rm-title">Daily reminders</h2><button type="button" class="sheet-close" aria-label="Close">✕</button></div>' +
+      '<p class="sheet-note">Pick your nudges and times. You’ll get a calendar file — open it and your Calendar app reminds you every day. Remove them in Calendar anytime.</p>' +
+      '<ul class="rm-list">' + rows + "</ul>" +
+      '<div class="export-note hidden" id="rm-note">Pick at least one reminder.</div>' +
+      '<div class="sheet-actions"><button type="button" class="btn btn-primary" id="rm-go">Download calendar file</button></div></div>');
+    el.querySelector("#rm-go").addEventListener("click", function () {
+      var chosen = list.filter(function (r) {
+        return el.querySelector('[data-rm="' + r.key + '"]').checked;
+      }).map(function (r) {
+        var t = el.querySelector('[data-rmt="' + r.key + '"]').value;
+        return { key: r.key, text: r.text, time: /^\d{2}:\d{2}$/.test(t) ? t : r.time };
+      });
+      if (!chosen.length) { el.querySelector("#rm-note").classList.remove("hidden"); return; }
+      saveBlob(buildIcs(chosen), "habitrack_reminders.ics", "text/calendar;charset=utf-8");
+      habitState.remindersSet = true;
+      saveHabitState();
+      closeSheet();
+      renderRemindCard();
+      showToast("Calendar file ready — open it to add " + plural(chosen.length, "reminder", "reminders"));
+    });
+  }
+  // The nudge card appears once the habit has started (2+ logged days) and goes
+  // away for good once reminders are set up or the user says "Not now".
+  function renderRemindCard() {
+    var show = !habitState.remindersSet && !habitState.remindDismissed && Object.keys(loggedDays()).length >= 2;
+    document.getElementById("remind-card").classList.toggle("hidden", !show);
+  }
+  document.getElementById("remind-open").addEventListener("click", openReminders);
+  document.getElementById("reminders-btn").addEventListener("click", openReminders);
+  document.getElementById("remind-dismiss").addEventListener("click", function () {
+    habitState.remindDismissed = true;
+    saveHabitState();
+    renderRemindCard();
+    showToast("Reminders are always in History → Your data");
+  });
+
+  // --- First-run welcome ---
+  // Three short cards for a brand-new, empty app. Closing it any way (✕, backdrop,
+  // Escape, or the last card's buttons) marks it seen for good.
+  var WELCOME = [
+    { title: "Welcome to Habitrack", body: "Log what you eat in a few seconds — a name, a tap, done. Everything stays on this device." },
+    { title: "Show up, don't be perfect", body: "Your streak counts every day you log anything. Missing a day now and then is fine: it's a rest day." },
+    { title: "Make it automatic", body: "Add Habitrack to your Home Screen (Share → Add to Home Screen) and, if you like, get a gentle daily nudge from your own calendar." }
+  ];
+  var welcomeStep = 0;
+  function welcomeHtml() {
+    var w = WELCOME[welcomeStep], last = welcomeStep === WELCOME.length - 1;
+    var dots = WELCOME.map(function (x, i) { return "<i" + (i === welcomeStep ? ' class="on"' : "") + "></i>"; }).join("");
+    var buttons = last
+      ? '<button type="button" class="btn btn-ghost" data-wl="remind">Set up reminders</button><button type="button" class="btn btn-primary" data-wl="start">Start logging</button>'
+      : (welcomeStep ? '<button type="button" class="btn btn-ghost" data-wl="back">Back</button>' : "") + '<button type="button" class="btn btn-primary" data-wl="next">Next</button>';
+    return '<div class="sheet welcome" role="dialog" aria-modal="true" aria-labelledby="wl-title">' +
+      '<div class="sheet-head"><span></span><button type="button" class="sheet-close" aria-label="Skip">✕</button></div>' +
+      '<img class="welcome-art" alt="" src="' + document.querySelector(".brand .logo").getAttribute("src") + '" />' +
+      '<h2 id="wl-title">' + w.title + "</h2><p>" + w.body + '</p><div class="welcome-dots">' + dots + "</div>" +
+      '<div class="sheet-actions">' + buttons + "</div></div>";
+  }
+  function markOnboarded() {
+    if (habitState.onboarded) return;
+    habitState.onboarded = true;
+    saveHabitState();
+  }
+  function openWelcome() {
+    welcomeStep = 0;
+    var el = openSheet(welcomeHtml(), markOnboarded, "welcome-backdrop");
+    el.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-wl]");
+      if (!b) return;
+      var act = b.getAttribute("data-wl");
+      if (act === "next" || act === "back") {
+        welcomeStep += act === "next" ? 1 : -1;
+        el.innerHTML = welcomeHtml();
+      } else if (act === "start") {
+        closeSheet();
+        openLogTab();
+        focusLogForm();
+      } else if (act === "remind") {
+        closeSheet();
+        openReminders();
+      }
+    });
+  }
+
+  // --- Tabs (hash-routed: #today, #log, #trends, #history) ---
+  // Every card lives in exactly one tab panel; nothing about the features changes,
+  // only where they sit. Switching sets location.hash, so Back goes to the previous
+  // tab and a reload stays put; a fresh launch opens on Today.
+  var TABS = ["today", "log", "trends", "history"];
+  var currentTab = null;
+  var editReturnTab = null; // where to go back to once an edit started elsewhere is done
+  function tabFromHash() {
+    var h = (location.hash || "").replace("#", "");
+    return TABS.indexOf(h) !== -1 ? h : "today";
+  }
+  function showTab(tab) {
+    if (tab === currentTab) return;
+    currentTab = tab;
+    TABS.forEach(function (t) {
+      document.getElementById("panel-" + t).classList.toggle("hidden", t !== tab);
+      document.getElementById("tab-" + t).setAttribute("aria-selected", t === tab ? "true" : "false");
+    });
+    // The charts size themselves (and snap to the newest day) from their visible
+    // width, so draw them once their panel is actually showing.
+    if (tab === "trends") renderChart();
+    window.scrollTo(0, 0);
+  }
+  function goTab(tab) {
+    showTab(tab);
+    if (location.hash !== "#" + tab) location.hash = tab;
+  }
+  function openLogTab(returnTo) {
+    editReturnTab = returnTo && returnTo !== "log" ? returnTo : null;
+    goTab("log");
+  }
+  function focusLogForm() { (entryMode === "weight" ? weightKgEl : whatEl).focus(); }
+  // After saving or cancelling an edit that was started from another tab.
+  function finishEdit() {
+    if (!editReturnTab) return;
+    var t = editReturnTab;
+    editReturnTab = null;
+    goTab(t);
+  }
+  window.addEventListener("hashchange", function () { showTab(tabFromHash()); });
+  // Opening the app (or reloading it) starts at the top of the tab, not wherever
+  // the browser last left the scroll position.
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  document.getElementById("tabbar").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-tab]");
+    if (!btn) return;
+    var t = btn.getAttribute("data-tab"), arriving = currentTab !== t;
+    if (t === "log") {
+      editReturnTab = null;
+      goTab("log");
+      if (arriving) focusLogForm(); // the old floating "+": straight to typing
+    } else {
+      goTab(t);
+    }
+  });
+  document.getElementById("first-log-btn").addEventListener("click", function () { openLogTab(); focusLogForm(); });
+
+  // While typing on mobile the tab bar steps aside (see CSS), so it can never sit
+  // on top of the field in use.
+  function isTextField(el) {
+    return !!el && (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && /^(text|number|date|time|search|email)$/.test(el.type)));
+  }
+  document.addEventListener("focusin", function (e) { if (isTextField(e.target)) document.body.classList.add("kb-open"); });
+  document.addEventListener("focusout", function () {
+    setTimeout(function () { if (!isTextField(document.activeElement)) document.body.classList.remove("kb-open"); }, 60);
+  });
+
   // --- Init ---
   saveEntries(); // persist any one-time migration from loadEntries()
   selectedDay = defaultDay();
@@ -4175,7 +4507,9 @@
   resetForm();
   resetWeightForm();
   setEntryMode("calories");
+  showTab(tabFromHash());
   render();
+  if (!entries.length && !weightEntries.length && !habitState.onboarded) openWelcome();
 })();
 </script>
 </body>

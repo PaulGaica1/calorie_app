@@ -67,7 +67,7 @@ Weight tracking is its own self-contained feature — **never mix it into
 Stored under `localStorage` key `habit-state`, separate from both data stores:
 ```
 { milestones: { <key>: <ISO date first earned> }, recapDismissed: "<week key>", onboarded: bool,
-  fastSeen: "<last-meal timestamp>|<hours nodded>" }
+  fastSeen: "<last-meal timestamp>|<hours nodded>", remindersSet: bool, remindDismissed: bool }
 ```
 Read through `normalizeHabitState()` so missing/unknown fields fall back to defaults.
 
@@ -86,18 +86,30 @@ the data, and offers a 10 s Undo.
   5 s toast with **Undo** (`showToast` + `restoreRecord` / `discardRecord` /
   `deleteRecord`). Only a full **restore** asks for confirmation first, because it
   replaces everything.
-- **Quick log** (top of the calorie form): up to 6 one-tap chips from `canonicalByWhat()`,
+- **Four tabs, hash-routed** (`#today` · `#log` · `#trends` · `#history`; `showTab` / `goTab`):
+  **Today** = Today panel, weekly recap, "Log again" quick-log card, consistency heatmap,
+  reminders nudge · **Log** = the Add entry card (calories + weight) · **Trends** = the
+  charts · **History** = Entries + Weight log tables and Your data. Every feature lives in
+  exactly one panel; moving them never changes their logic. Back goes to the previous tab, a
+  reload keeps the tab, a fresh launch opens Today (`history.scrollRestoration = "manual"`).
+  The chart is (re)drawn when Trends is shown, because it sizes/scrolls from its visible
+  width. Editing from History opens Log and **returns to History** after Save/Cancel
+  (`openLogTab(returnTo)` / `finishEdit()`); a heatmap tap opens History filtered; a chart-bar
+  tap offers "View" in a toast.
+- **Tab bar:** fixed bottom bar on mobile (≤560px) whose raised teal **+** is the Log tab —
+  tapping it from another tab focuses the active form's first field (this replaced the
+  earlier floating "+"). On desktop it is a sticky pill under the header. On mobile it hides
+  while a text field is focused (`body.kb-open`) and `scroll-padding-bottom` keeps
+  scrolled-to elements above it, so it can never cover the field in use. Toasts sit above it.
+- **Quick log** (top of the calorie form **and** the Today tab's "Log again" card): up to 6 one-tap chips from `canonicalByWhat()`,
   ranked by logs in the last 30 days (+1 per log at the current part of day), ties →
   most recent. Tap = `addEntry()` **now** (time snapped to the quarter hour) with the
-  item's usual category/rating/prep/calories; **✎** = `applySuggestion()` into the form.
-  Hidden with no history and while an edit is open.
+  item's usual category/rating/prep/calories; **✎** = Log tab + `applySuggestion()` (never
+  over an open edit). Hidden with no history; the form's copy also hides while editing.
 - **Smart category default:** a fresh form pre-selects the category for the time of day
   (`PART_CATEGORY` over `DAY_PARTS`: Breakfast / Lunch / Snack / Dinner / Snack) and keeps
   following the clock (`makeClockPicker`'s `onChange`) until the user picks one, a
   suggestion is applied, or an entry is being edited.
-- **Floating "+"** (mobile ≤560px only) appears only when the **whole** Add entry card is
-  off screen (IntersectionObserver → `body.fab-on`), so it can never cover a form field;
-  it scrolls back and focuses the active form's first field. Toasts lift above it.
 - **Toasts never block what's beneath:** the toast body is `pointer-events: none`; only
   its action button takes taps.
 - **Save celebration:** every *new* log (food teal, weight blue) pops a logo-like check
@@ -120,7 +132,7 @@ the data, and offers a 10 s Undo.
   logged day is filled — not-so-healthy days still count as showing up — with green
   deepening by healthy share (`l0` soft teal = nothing rated → `l4`); blue dot = weigh-in.
   Tapping a logged day sets `filterDate` (same path as a chart bar, cells use
-  `data-hdate`) and scrolls to the Entries table.
+  `data-hdate`) and opens the History tab.
 - **Milestones** (`MILESTONES`): first log, first weigh-in, streaks 3/7/14/30/60/100 (by
   best streak), 100/250/500/1000 entries, 10/30 weigh-ins — only ever about logging.
   Earned once (date in `habitState.milestones`), celebrated once with confetti + a toast
@@ -138,6 +150,18 @@ the data, and offers a 10 s Undo.
   share get a teal "good" delta when up; calories, fasting and weight deltas stay neutral.
 - **Shared day helpers:** `entriesByDate()` + `fastWindowMin(byDate, date)` (overnight
   window) are top-level and reused by the chart's FW captions, insights and recap.
+- **Calendar reminders** (no server, so no push): the Reminders sheet (Today nudge card once
+  2+ days are logged, or History → Your data → "Calendar reminders") downloads
+  `habitrack_reminders.ics` with daily `RRULE:FREQ=DAILY` events + `VALARM`s in **floating
+  local time**, with stable UIDs (re-importing updates instead of duplicating). Defaults are
+  your median Breakfast/Lunch/Dinner times over 60 days **+30 min** and your median weigh-in
+  time (fallbacks 08:30 / 13:00 / 19:30 / 07:30); every time is editable. Lines are folded
+  at 75 octets with CRLF endings (RFC 5545). The nudge goes away once set up or on "Not now".
+- **First-run welcome:** 3 short cards for a brand-new, empty app; closing it any way marks
+  `habitState.onboarded`. The last card offers Start logging (Log tab, focused) or reminders.
+  Empty states point to the next step ("Log your first meal" on Today).
+- **Sheets** (Milestones, Reminders, Welcome) share `openSheet(html, onClose)` /
+  `closeSheet()`: one at a time; ✕, backdrop tap or Escape close them.
 - **`.hidden` is `!important`** so a component rule that sets `display` can never un-hide
   something the code hid.
 - **Live tick:** every 30 s (and on returning to the app / day rollover) the panel
