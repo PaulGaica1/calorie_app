@@ -66,7 +66,8 @@ Weight tracking is its own self-contained feature — **never mix it into
 ### Habit state (app bookkeeping, not user data)
 Stored under `localStorage` key `habit-state`, separate from both data stores:
 ```
-{ milestones: { <key>: <ISO date first earned> }, recapDismissed: "<week key>", onboarded: bool }
+{ milestones: { <key>: <ISO date first earned> }, recapDismissed: "<week key>", onboarded: bool,
+  fastSeen: "<last-meal timestamp>|<hours nodded>" }
 ```
 Read through `normalizeHabitState()` so missing/unknown fields fall back to defaults.
 
@@ -102,6 +103,17 @@ the data, and offers a 10 s Undo.
 - **Save celebration:** every *new* log (food teal, weight blue) pops a logo-like check
   (`celebrate()`) + `navigator.vibrate` where supported; updates don't celebrate. The
   Today number counts up to its new value. Both respect `prefers-reduced-motion`.
+- **Today panel** (top card): SVG ring of today's calories vs **your usual day**
+  (`usualDailyCalories()` = mean of the last ≤10 logged days *before* today — a reference,
+  never a goal; the ring is simply full at/over it, no overflow or red), items logged,
+  healthy share of *rated* items (`dayStats()`), and a **fasting timer** since the last
+  item logged at or before now (`lastMealInfo()`; hidden after 48h). Fasting gets a quiet
+  toast once per fast at **12h and 16h only** — deliberately nothing beyond, so the app
+  never rewards ever-longer fasts. Seen marks are kept in `habitState.fastSeen`.
+- **Live tick:** every 30 s (and on returning to the app / day rollover) the panel
+  redraws, and an **untouched** form's date/time moves on to now (`autoStamp`), so a log
+  after the app sat open never lands on a stale time or yesterday. A date/time the user
+  set themselves is never overwritten.
 - **Install as an app:** `<head>` carries `theme-color`, `apple-mobile-web-app-*` and an
   **opaque** 180px `apple-touch-icon` data URI (iOS renders transparent icon corners
   black). No service worker or manifest file — that would break the single-file rule.
