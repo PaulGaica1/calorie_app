@@ -101,6 +101,12 @@ the data, and offers a 10 s Undo.
   earlier floating "+"). On desktop it is a sticky pill under the header. On mobile it hides
   while a text field is focused (`body.kb-open`) and `scroll-padding-bottom` keeps
   scrolled-to elements above it, so it can never cover the field in use. Toasts sit above it.
+  **Tapping + animates:** the button squishes and springs back with a quarter turn
+  (`replayAnim(.tab-plus, "pop")`, on every tap) and the Log panel rises into place
+  (`panel-rise`, ~0.32 s) whenever Log opens — other tabs switch instantly. The bar waits
+  for the bounce (~0.43 s) before stepping aside for the keyboard. Reduced motion: no
+  bounce, the panel only fades. `replayAnim()` removes its class on animationend/cancel,
+  so a later display change never re-runs an animation.
 - **Quick log** (top of the calorie form **and** the Today tab's "Log again" card): up to 6 one-tap chips from `canonicalByWhat()`,
   ranked by logs in the last 30 days (+1 per log at the current part of day), ties →
   most recent. Tap = `addEntry()` **now** (time snapped to the quarter hour) with the
