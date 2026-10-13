@@ -126,6 +126,18 @@ the data, and offers a 10 s Undo.
   Earned once (date in `habitState.milestones`), celebrated once with confetti + a toast
   that **queues behind** the action's own Undo toast (`queueToast`); qualifying history
   earns them in one go. Confetti is skipped with reduced motion.
+- **Insight of the day** (foot of the Today card): `INSIGHTS` generators over your own data
+  (prep-mode healthy split, share of calories after 5pm, longest overnight fast this week,
+  healthiest weekday, healthy-day run, 7-day weight vs a month ago, days logged, go-to item,
+  usual first bite). Each returns a **neutral** sentence or `null` without enough data; the
+  pick rotates daily (stable within a day), › shows the next. Rendered via `textContent`
+  (entry names are user text).
+- **Weekly recap** (`renderRecap`): on **Mondays** last full Mon–Sun week vs the one before,
+  shown until dismissed (`habitState.recapDismissed` = that week's Monday); any day via
+  "Your week ›" = this week so far vs the same days last week. Days logged and healthy
+  share get a teal "good" delta when up; calories, fasting and weight deltas stay neutral.
+- **Shared day helpers:** `entriesByDate()` + `fastWindowMin(byDate, date)` (overnight
+  window) are top-level and reused by the chart's FW captions, insights and recap.
 - **`.hidden` is `!important`** so a component rule that sets `display` can never un-hide
   something the code hid.
 - **Live tick:** every 30 s (and on returning to the app / day rollover) the panel
