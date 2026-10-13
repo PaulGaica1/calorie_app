@@ -914,6 +914,41 @@
     .ring-num { font-size: 22px; }
   }
 
+  /* Insight of the day: one data-driven sentence at the foot of the Today card. */
+  .insight {
+    display: flex; align-items: flex-start; gap: 10px;
+    margin-top: 16px; padding: 11px 12px;
+    background: var(--accent-soft); border-radius: 13px;
+    font-size: 13.5px; font-weight: 600; color: #145f5a; line-height: 1.45;
+  }
+  .insight-icon { flex-shrink: 0; font-size: 15px; line-height: 1.3; }
+  .insight-text { flex: 1; min-width: 0; }
+  .insight-next {
+    flex-shrink: 0; border: none; background: rgba(255, 255, 255, .7); color: var(--accent-d);
+    width: 26px; height: 26px; border-radius: 50%; font-size: 17px; line-height: 1; cursor: pointer;
+  }
+  .today-head-right { display: flex; align-items: center; gap: 10px; }
+  .week-btn {
+    border: 1px solid var(--border); background: #fffdfb; color: var(--accent-d);
+    font-family: var(--font-body); font-size: 12px; font-weight: 700;
+    padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  }
+  .week-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+  /* Weekly recap card: this week (or last, on Mondays) vs the one before. */
+  .recap-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .recap-kicker { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; color: var(--accent-d); margin-bottom: 3px; }
+  .recap-head h2 { margin: 0; font-size: 18px; }
+  .recap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 9px; }
+  .recap-tile { background: var(--bg-2); border-radius: 14px; padding: 10px 12px; }
+  .recap-tile .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--muted); }
+  .recap-tile .v { font-family: var(--font-display); font-size: 21px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; margin-top: 1px; }
+  .recap-tile .v span { font-size: 12px; color: var(--muted); margin-left: 2px; }
+  .recap-tile .d { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .recap-tile .d.good { color: var(--accent-d); }
+  .recap-foot { font-size: 12px; color: var(--muted); margin-top: 11px; }
+  @media (max-width: 560px) { .recap-grid { grid-template-columns: 1fr 1fr; } }
+
   /* Streak badge (header): a button that opens the Milestones sheet. */
   button.streak-badge { font-family: inherit; color: inherit; cursor: pointer; transition: transform .12s; }
   button.streak-badge:active { transform: translateY(1px); }
@@ -1140,7 +1175,10 @@
   <section class="card today-card" id="today-card">
     <div class="today-head">
       <h2>Today</h2>
-      <span class="today-date" id="today-date"></span>
+      <div class="today-head-right">
+        <button type="button" class="week-btn hidden" id="week-btn">Your week ›</button>
+        <span class="today-date" id="today-date"></span>
+      </div>
     </div>
     <div class="today-body">
       <div class="ring-wrap">
@@ -1168,6 +1206,24 @@
         </div>
       </div>
     </div>
+    <div class="insight hidden" id="insight">
+      <span class="insight-icon" aria-hidden="true">💡</span>
+      <span class="insight-text" id="insight-text"></span>
+      <button type="button" class="insight-next hidden" id="insight-next" aria-label="Next insight">›</button>
+    </div>
+  </section>
+
+  <!-- 0b. Weekly recap (Mondays, or on demand from "Your week") -->
+  <section class="card recap-card hidden" id="recap-card" aria-live="polite">
+    <div class="recap-head">
+      <div>
+        <div class="recap-kicker" id="recap-kicker"></div>
+        <h2 id="recap-title"></h2>
+      </div>
+      <button type="button" class="sheet-close" id="recap-close" aria-label="Close week in review">✕</button>
+    </div>
+    <div class="recap-grid" id="recap-grid"></div>
+    <div class="recap-foot" id="recap-foot"></div>
   </section>
 
   <!-- 1. Entry form -->
@@ -2638,6 +2694,8 @@
     renderWeightTable();
     renderStreakBadge(streakInfo());
     renderTodayPanel();
+    renderInsight();
+    renderRecap();
     renderQuickLog();
     renderHeatmap();
     checkMilestones();
@@ -3021,6 +3079,241 @@
   streakBadge.addEventListener("click", openMilestones);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMilestones(); });
 
+  // --- Insight of the day ---
+  // Small, neutral observations drawn from your own data — something new to
+  // notice each day. The pick rotates daily (stable within a day); › shows the
+  // next one. Each generator returns a sentence, or null without enough data.
+  var FULL_DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  function addDays(iso, n) { var d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return dateStr(d); }
+  function pctOf(part, whole) { return Math.round(part / whole * 100); }
+  var INSIGHTS = [
+    // Healthiest vs least-healthy prep mode (≥4 rated items each, ≥20 pt apart).
+    function (c) {
+      var by = {};
+      c.recent.forEach(function (en) {
+        if (!en.prepMode || !en.selfAssessment) return;
+        var b = by[en.prepMode] || (by[en.prepMode] = { n: 0, h: 0 });
+        b.n++;
+        if (isHealthy(en)) b.h++;
+      });
+      var modes = Object.keys(by).filter(function (k) { return by[k].n >= 4; });
+      if (modes.length < 2) return null;
+      modes.sort(function (a, b) { return by[b].h / by[b].n - by[a].h / by[a].n; });
+      var hi = modes[0], lo = modes[modes.length - 1];
+      var ph = pctOf(by[hi].h, by[hi].n), pl = pctOf(by[lo].h, by[lo].n);
+      return ph - pl >= 20 ? hi + " meals are " + ph + "% healthy, vs " + pl + "% for " + lo + "." : null;
+    },
+    // Share of calories after 5pm (≥10 days of food logged).
+    function (c) {
+      if (c.foodDays < 10) return null;
+      var total = 0, late = 0;
+      c.recent.forEach(function (en) {
+        total += en.estimatedCalories;
+        if (en.time >= "17:00") late += en.estimatedCalories;
+      });
+      return total ? "About " + pctOf(late, total) + "% of your calories come after 5pm." : null;
+    },
+    // Longest overnight fast in the last 7 days (≥8h to be worth mentioning).
+    function (c) {
+      var best = null, bestDay = null;
+      for (var i = 0; i < 7; i++) {
+        var d = daysBefore(c.today, i), fw = fastWindowMin(c.byDate, d);
+        if (fw != null && (best == null || fw > best)) { best = fw; bestDay = d; }
+      }
+      return best != null && best >= 480 ? "Your longest overnight fast this week: " + fmtDuration(best) + " (" + formatDateShort(bestDay) + ")." : null;
+    },
+    // Healthiest weekday over the last 8 weeks (≥6 rated items, ≥10 pts above overall).
+    function (c) {
+      var start = daysBefore(c.today, 55), tot = { n: 0, h: 0 };
+      var by = FULL_DOW.map(function () { return { n: 0, h: 0 }; });
+      entries.forEach(function (en) {
+        if (en.date < start || en.date > c.today || !en.selfAssessment) return;
+        var b = by[new Date(en.date + "T00:00:00").getDay()];
+        b.n++; tot.n++;
+        if (isHealthy(en)) { b.h++; tot.h++; }
+      });
+      var best = -1;
+      by.forEach(function (b, i) { if (b.n >= 6 && (best < 0 || b.h / b.n > by[best].h / by[best].n)) best = i; });
+      if (best < 0) return null;
+      var pb = pctOf(by[best].h, by[best].n), pt = pctOf(tot.h, tot.n);
+      return pb - pt >= 10 ? "Your healthiest day of the week tends to be " + FULL_DOW[best] + " (" + pb + "% healthy vs " + pt + "% overall)." : null;
+    },
+    // A run of mostly-healthy days (≥3), counting today once it has rated items.
+    function (c) {
+      var run = 0, d = c.today;
+      if (!dayStats(d).rated) d = prevDateStr(d);
+      for (var guard = 0; guard < 400; guard++) {
+        var st = dayStats(d);
+        if (!st.rated || st.healthyShare < 0.5) break;
+        run++;
+        d = prevDateStr(d);
+      }
+      return run >= 3 ? run + " days in a row of mostly healthy meals." : null;
+    },
+    // 7-day mean weight vs the same a month ago (≥2 weigh-ins in each week).
+    function (c) {
+      function mean(a, b) {
+        var s = 0, n = 0;
+        weightEntries.forEach(function (w) { if (w.date >= a && w.date <= b) { s += w.weightKg; n++; } });
+        return n >= 2 ? s / n : null;
+      }
+      var now = mean(daysBefore(c.today, 6), c.today), then = mean(daysBefore(c.today, 34), daysBefore(c.today, 28));
+      if (now == null || then == null) return null;
+      var d = Math.round((now - then) * 10) / 10;
+      return d === 0
+        ? "Your weight is steady compared with a month ago (7-day averages)."
+        : "Your 7-day average weight is " + (d < 0 ? "down " : "up ") + Math.abs(d).toFixed(1) + " kg compared with a month ago.";
+    },
+    // Logging consistency (only worth saying once it's a real habit).
+    function (c) { return c.loggedDays >= 15 ? "You've logged " + c.loggedDays + " of the last 30 days." : null; },
+    // Your go-to item lately (≥5 times in 30 days).
+    function (c) {
+      var count = {}, name = {};
+      c.recent.forEach(function (en) {
+        var k = en.what.trim().toLowerCase();
+        count[k] = (count[k] || 0) + 1;
+        name[k] = en.what;
+      });
+      var top = Object.keys(count).sort(function (a, b) { return count[b] - count[a]; })[0];
+      return top && count[top] >= 5 ? "Your go-to lately: " + name[top] + " (" + count[top] + " times in 30 days)." : null;
+    },
+    // Usual time of the first bite (median of the last 14 days, ≥7 of them).
+    function (c) {
+      var firsts = [];
+      for (var i = 1; i <= 14; i++) {
+        var day = c.byDate[daysBefore(c.today, i)];
+        if (day && day.length) firsts.push(timeToMin(day[0].time));
+      }
+      if (firsts.length < 7) return null;
+      firsts.sort(function (a, b) { return a - b; });
+      var q = Math.round(firsts[Math.floor(firsts.length / 2)] / 15) * 15;
+      return "You usually have your first bite around " + pad(Math.floor(q / 60) % 24) + ":" + pad(q % 60) + ".";
+    }
+  ];
+  var insightOffset = 0; // bumped by ›, for this session only
+  function insightContext() {
+    var today = dateStr(new Date()), start = daysBefore(today, 29), days = {}, foodDays = {};
+    var recent = entries.filter(function (en) { return en.date >= start && en.date <= today; });
+    recent.forEach(function (en) { foodDays[en.date] = days[en.date] = true; });
+    weightEntries.forEach(function (w) { if (w.date >= start && w.date <= today) days[w.date] = true; });
+    return { today: today, recent: recent, byDate: entriesByDate(), loggedDays: Object.keys(days).length, foodDays: Object.keys(foodDays).length };
+  }
+  function currentInsights() {
+    var c = insightContext();
+    return INSIGHTS.map(function (g) { return g(c); }).filter(Boolean);
+  }
+  function renderInsight() {
+    var list = currentInsights(), el = document.getElementById("insight");
+    el.classList.toggle("hidden", !list.length);
+    if (!list.length) return;
+    var dayNum = Math.floor(new Date(dateStr(new Date()) + "T00:00:00").getTime() / 864e5);
+    // textContent: some insights quote an entry name, which is user text.
+    document.getElementById("insight-text").textContent = list[(dayNum + insightOffset) % list.length];
+    document.getElementById("insight-next").classList.toggle("hidden", list.length < 2);
+  }
+  document.getElementById("insight-next").addEventListener("click", function () { insightOffset++; renderInsight(); });
+
+  // --- Weekly recap ---
+  // On Mondays: last full week (Mon–Sun) vs the week before, shown until dismissed.
+  // Any other day, on demand: this week so far vs the same days last week.
+  // Logging habits (days logged, healthy share) get a teal "good" delta when up;
+  // calories, fasting and weight deltas stay neutral — facts, not verdicts.
+  var recapOpen = false;
+  function mondayOf(iso) { var d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return dateStr(d); }
+  function recapPeriods(today) {
+    var mon = mondayOf(today);
+    if (today === mon) {
+      var a0 = addDays(mon, -7);
+      return { full: true, a: [a0, addDays(a0, 6)], b: [addDays(a0, -7), addDays(a0, -1)] };
+    }
+    var span = dayDiff(mon, today);
+    return { full: false, a: [mon, today], b: [addDays(mon, -7), addDays(mon, span - 7)] };
+  }
+  function periodStats(range, byDate) {
+    var days = 0, logged = 0, cals = 0, foodDays = 0, rated = 0, healthy = 0, fastSum = 0, fastN = 0, kgSum = 0, kgN = 0, weighed = {};
+    weightEntries.forEach(function (w) {
+      if (w.date >= range[0] && w.date <= range[1]) { kgSum += w.weightKg; kgN++; weighed[w.date] = true; }
+    });
+    for (var d = range[0]; d <= range[1]; d = nextDateStr(d)) {
+      days++;
+      var meals = byDate[d] || [];
+      if (meals.length || weighed[d]) logged++;
+      if (meals.length) {
+        foodDays++;
+        meals.forEach(function (en) {
+          cals += en.estimatedCalories;
+          if (en.selfAssessment) { rated++; if (isHealthy(en)) healthy++; }
+        });
+      }
+      var fw = fastWindowMin(byDate, d);
+      if (fw != null) { fastSum += fw; fastN++; }
+    }
+    return {
+      days: days, logged: logged,
+      avgCal: foodDays ? cals / foodDays : null,
+      healthy: rated ? healthy / rated : null,
+      fast: fastN ? fastSum / fastN : null,
+      kg: kgN ? kgSum / kgN : null
+    };
+  }
+  function fmtRange(r) { return formatDateShort(r[0]) + " – " + formatDateShort(r[1]); }
+  // Delta line under a recap tile: "+1 day", "−120 cal", "same" … vs last week.
+  function recapDelta(diff, fmt, goodIfUp) {
+    if (diff == null) return "";
+    var cls = goodIfUp && diff > 0 ? " good" : "";
+    var txt = diff === 0 ? "same as last week" : (diff > 0 ? "+" : "−") + fmt(Math.abs(diff)) + " vs last week";
+    return '<div class="d' + cls + '">' + txt + "</div>";
+  }
+  function recapTile(label, value, delta) {
+    return '<div class="recap-tile"><div class="k">' + label + '</div><div class="v">' + value + "</div>" + delta + "</div>";
+  }
+  function renderRecap() {
+    var card = document.getElementById("recap-card"), today = dateStr(new Date()), per = recapPeriods(today);
+    document.getElementById("week-btn").classList.toggle("hidden", !(entries.length || weightEntries.length));
+    var byDate = entriesByDate(), A = periodStats(per.a, byDate), B = periodStats(per.b, byDate);
+    var auto = per.full && A.logged > 0 && habitState.recapDismissed !== per.a[0];
+    var show = recapOpen || auto;
+    card.classList.toggle("hidden", !show);
+    if (!show) return;
+
+    document.getElementById("recap-kicker").textContent = (per.full ? "Week in review · " : "This week so far · ") + fmtRange(per.a);
+    var title;
+    if (!A.logged) title = "Nothing logged yet this week";
+    else if (per.full && A.logged === 7) title = "A perfect week — you logged all 7 days!";
+    else if (per.full) title = "You logged " + A.logged + " of 7 days";
+    else title = A.logged + " of " + A.days + " days logged so far" + (A.logged === A.days ? " — keep it going" : "");
+    document.getElementById("recap-title").textContent = title;
+
+    var both = function (k) { return A[k] != null && B[k] != null; };
+    var tiles = recapTile("Days logged", A.logged + "<span>/ " + A.days + "</span>",
+      recapDelta(A.logged - B.logged, function (n) { return plural(n, "day", "days"); }, true));
+    tiles += recapTile("Avg per day", A.avgCal != null ? fmtNum(Math.round(A.avgCal / 10) * 10) + "<span>cal</span>" : "—",
+      both("avgCal") ? recapDelta(Math.round((A.avgCal - B.avgCal) / 10) * 10, function (n) { return fmtNum(n) + " cal"; }, false) : "");
+    tiles += recapTile("Healthy", A.healthy != null ? Math.round(A.healthy * 100) + "%" : "—",
+      both("healthy") ? recapDelta(Math.round(A.healthy * 100) - Math.round(B.healthy * 100), function (n) { return n + " pts"; }, true) : "");
+    tiles += recapTile("Overnight fast", A.fast != null ? fmtDuration(Math.round(A.fast)) : "—",
+      both("fast") ? recapDelta(Math.round(A.fast - B.fast), fmtDuration, false) : "");
+    if (A.kg != null || B.kg != null) {
+      tiles += recapTile("Avg weight", A.kg != null ? A.kg.toFixed(1) + "<span>kg</span>" : "—",
+        both("kg") ? recapDelta(Math.round((A.kg - B.kg) * 10) / 10, function (n) { return n.toFixed(1) + " kg"; }, false) : "");
+    }
+    document.getElementById("recap-grid").innerHTML = tiles;
+    document.getElementById("recap-foot").textContent = per.full
+      ? "Compared with " + fmtRange(per.b) + "."
+      : "Compared with the same days last week (" + fmtRange(per.b) + ").";
+  }
+  document.getElementById("recap-close").addEventListener("click", function () {
+    var per = recapPeriods(dateStr(new Date()));
+    if (per.full) { habitState.recapDismissed = per.a[0]; saveHabitState(); }
+    recapOpen = false;
+    renderRecap();
+  });
+  document.getElementById("week-btn").addEventListener("click", function () {
+    recapOpen = !recapOpen;
+    renderRecap();
+    if (recapOpen) document.getElementById("recap-card").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+
   // Parts of the day (by meal hour). "Night" wraps past midnight (21:00–04:59):
   // hours before 5 are treated as hour+24 so a 2am snack lands in Night.
   var DAY_PARTS = [
@@ -3058,6 +3351,21 @@
       " L" + (x + w - r) + "," + y +
       " Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) +
       " L" + (x + w) + "," + (y + h) + " Z";
+  }
+  // Food entries grouped by date, each day in eating order.
+  function entriesByDate() {
+    var byDate = {};
+    entries.forEach(function (en) { (byDate[en.date] = byDate[en.date] || []).push(en); });
+    Object.keys(byDate).forEach(function (k) { byDate[k].sort(byTimeAsc); });
+    return byDate;
+  }
+  // Overnight fasting window ending on `date`: previous day's last item → this
+  // day's first item, in minutes (null unless both days have entries).
+  // `byDate` is entriesByDate()-shaped (each day sorted).
+  function fastWindowMin(byDate, date) {
+    var meals = byDate[date], prev = byDate[prevDateStr(date)];
+    if (!meals || !meals.length || !prev || !prev.length) return null;
+    return (1440 - timeToMin(prev[prev.length - 1].time)) + timeToMin(meals[0].time);
   }
   // Average calories per day over the most recent (up to) 10 logged days.
   function avgDailyCalories() {
@@ -3335,11 +3643,6 @@
     }
     Object.keys(byDate).forEach(function (k) { byDate[k].sort(byTimeAsc); });
     var todayKey = dateStr(new Date());
-    function fastWindowMin(date) {
-      var meals = byDate[date], prev = byDate[prevDateStr(date)];
-      if (!meals || !meals.length || !prev || !prev.length) return null;
-      return (1440 - timeToMin(prev[prev.length - 1].time)) + timeToMin(meals[0].time);
-    }
     var cols = dates.map(function (d) {
       var meals = byDate[d] || [];
       var isToday = d === todayKey;
@@ -3347,7 +3650,7 @@
       // LM/FW captions only make sense on past days that actually logged meals.
       if (!isToday && meals.length) {
         sub.push("LM: " + meals[meals.length - 1].time);
-        var fw = fastWindowMin(d);
+        var fw = fastWindowMin(byDate, d);
         sub.push("FW: " + (fw == null ? "—" : fmtHours(fw)));
       }
       var total = meals.reduce(function (s, en) { return s + en.estimatedCalories; }, 0);
