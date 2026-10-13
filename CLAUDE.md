@@ -85,6 +85,23 @@ the data, and offers a 10 s Undo.
   5 s toast with **Undo** (`showToast` + `restoreRecord` / `discardRecord` /
   `deleteRecord`). Only a full **restore** asks for confirmation first, because it
   replaces everything.
+- **Quick log** (top of the calorie form): up to 6 one-tap chips from `canonicalByWhat()`,
+  ranked by logs in the last 30 days (+1 per log at the current part of day), ties →
+  most recent. Tap = `addEntry()` **now** (time snapped to the quarter hour) with the
+  item's usual category/rating/prep/calories; **✎** = `applySuggestion()` into the form.
+  Hidden with no history and while an edit is open.
+- **Smart category default:** a fresh form pre-selects the category for the time of day
+  (`PART_CATEGORY` over `DAY_PARTS`: Breakfast / Lunch / Snack / Dinner / Snack) and keeps
+  following the clock (`makeClockPicker`'s `onChange`) until the user picks one, a
+  suggestion is applied, or an entry is being edited.
+- **Floating "+"** (mobile ≤560px only) appears only when the **whole** Add entry card is
+  off screen (IntersectionObserver → `body.fab-on`), so it can never cover a form field;
+  it scrolls back and focuses the active form's first field. Toasts lift above it.
+- **Toasts never block what's beneath:** the toast body is `pointer-events: none`; only
+  its action button takes taps.
+- **Save celebration:** every *new* log (food teal, weight blue) pops a logo-like check
+  (`celebrate()`) + `navigator.vibrate` where supported; updates don't celebrate. The
+  Today number counts up to its new value. Both respect `prefers-reduced-motion`.
 - **Install as an app:** `<head>` carries `theme-color`, `apple-mobile-web-app-*` and an
   **opaque** 180px `apple-touch-icon` data URI (iOS renders transparent icon corners
   black). No service worker or manifest file — that would break the single-file rule.
