@@ -63,7 +63,31 @@ Weight tracking is its own self-contained feature — **never mix it into
 - `weightKg` (number, kg). `preBM` (optional): "Yes" | "No" | "".
 - `date`/`time`/`timestamp` same conventions as calorie entries.
 
+### Habit state (app bookkeeping, not user data)
+Stored under `localStorage` key `habit-state`, separate from both data stores:
+```
+{ milestones: { <key>: <ISO date first earned> }, recapDismissed: "<week key>", onboarded: bool }
+```
+Read through `normalizeHabitState()` so missing/unknown fields fall back to defaults.
+
+### Backup file (JSON)
+`habitrack_backup_<date>_<time>.json` =
+`{ app: "habitrack", version: 1, exportedAt, calorieEntries, weightEntries, habitState }`.
+Restore validates every row (bad rows are counted and skipped, calorie rows go
+through `migrateEntry()`), asks for confirmation with before/after counts, replaces
+the data, and offers a 10 s Undo.
+
 ## Decisions we must NOT reverse
+- **Habit guardrail:** the habit features reward *consistency* (showing up, logging),
+  **never eating less**. No red "failure" states, no guilt copy, forgiving streaks;
+  milestones are about logging, never about calorie numbers.
+- **Undo, not confirm:** saves and deletes (food + weight) act immediately and show a
+  5 s toast with **Undo** (`showToast` + `restoreRecord` / `discardRecord` /
+  `deleteRecord`). Only a full **restore** asks for confirmation first, because it
+  replaces everything.
+- **Install as an app:** `<head>` carries `theme-color`, `apple-mobile-web-app-*` and an
+  **opaque** 180px `apple-touch-icon` data URI (iOS renders transparent icon corners
+  black). No service worker or manifest file — that would break the single-file rule.
 - **Single file, zero build, no dependencies, no backend.** Keep everything in `index.html`;
   data stays in `localStorage`.
 - **Keep `migrateEntry()`** (in `loadEntries`) — it upgrades old saved data (old snack
