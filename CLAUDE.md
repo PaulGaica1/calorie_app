@@ -45,8 +45,14 @@ calorie_app/
   const p=await b.newPage();await p.goto("file:///home/user/calorie_app/index.html");
   console.log(await p.title());await b.close();})()'
   ```
-  Seed state via `localStorage["calorie-entries"]` (JSON array of entries) then reload.
-  Always screenshot desktop (~880px) and mobile (~390px).
+  Seed state via `localStorage` (`calorie-entries`, `weight-entries`, `habit-state`) then
+  reload. Always screenshot desktop (~880px) and mobile (~390px).
+  **Sandbox tips:** the cloud sandbox's proxy blocks `github.io` and `cdn.jsdelivr.net` (the
+  npm registry works). To test ✨ Estimate, `npm install @anthropic-ai/sdk@<pinned> esbuild`
+  in a scratch dir, bundle the SDK to one ESM file (`esbuild --bundle --format=esm`), then
+  `page.route` `AI_SDK_URL` to serve it and mock `https://api.anthropic.com/v1/messages`
+  with canned replies — never use a real key. Use `page.clock` for time-dependent features
+  (fasting timer, streaks, recap, live tick).
 
 ## Data model (do NOT rename fields)
 Each entry in `localStorage`:
@@ -292,6 +298,8 @@ the data, and offers a 10 s Undo.
   New features stay client-side and self-contained.
 - **Test before publishing** (browser/Playwright + desktop & mobile screenshot), then
   commit and merge to `main`.
-- **Git:** develop on `claude/calorie-tracking-app-0760bf`, merge to `main` to publish.
-  End commit messages with the `Co-Authored-By: Claude …` trailer. Never commit the model
-  identifier anywhere.
+- **Git:** develop on whatever branch the session assigns. When a change is tested, ship it
+  **without asking**: open a PR into `main` and squash-merge it (the owner tests on the live
+  app; revert if needed). After a merge, restart the branch from the latest `main` before the
+  next change. End commit messages with the `Co-Authored-By: Claude …` trailer. Never commit
+  the model identifier anywhere.
