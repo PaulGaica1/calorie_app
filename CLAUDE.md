@@ -15,7 +15,11 @@ Guidance for working on this repo. Read this first.
 - Plain **HTML + CSS + JavaScript**, all inline in a single `index.html`. No framework,
   no build step, no bundler, no `package.json`.
 - **No dependencies** except two Google Fonts (Fredoka = display, Nunito = body) via `<link>`.
-- **Persistence:** browser `localStorage` (key `calorie-entries`). No backend, no DB, no network.
+  **One opt-in exception:** the official Anthropic SDK (`@anthropic-ai/sdk@0.131.0`, pinned)
+  is `import()`ed from jsDelivr only when the user taps ✨ Estimate with their own API key
+  saved — see "AI estimates" below. Without a key, nothing is downloaded.
+- **Persistence:** browser `localStorage` (key `calorie-entries`). No backend, no DB. The only
+  network call the app ever makes is the opt-in ✨ Estimate request to Anthropic.
 - **Charts:** hand-rolled inline **SVG** (no chart library).
 - **Hosting:** GitHub Pages from `main`. Repo `PaulGaica1/calorie_app`.
 
@@ -70,6 +74,10 @@ Stored under `localStorage` key `habit-state`, separate from both data stores:
   fastSeen: "<last-meal timestamp>|<hours nodded>", remindersSet: bool, remindDismissed: bool }
 ```
 Read through `normalizeHabitState()` so missing/unknown fields fall back to defaults.
+
+### AI settings (opt-in, device-only)
+`localStorage` key `ai-settings` = `{ apiKey }` — the user's own Anthropic API key. Never
+written to backups, never restored from them; removed entirely when the user taps Remove.
 
 ### Backup file (JSON)
 `habitrack_backup_<date>_<time>.json` =
@@ -168,6 +176,23 @@ the data, and offers a 10 s Undo.
   Empty states point to the next step ("Log your first meal" on Today).
 - **Sheets** (Milestones, Reminders, Welcome) share `openSheet(html, onClose)` /
   `closeSheet()`: one at a time; ✕, backdrop tap or Escape close them.
+- **✨ AI estimates (opt-in, bring-your-own key):** with a key saved in History → Your data,
+  the Log form shows **✨ Estimate** beside "What". Tapping it lazily imports the pinned SDK
+  (`AI_SDK_URL`), creates `new Anthropic({ apiKey, dangerouslyAllowBrowser: true,
+  timeout: 30000, maxRetries: 1 })`, and calls `client.beta.messages.create` with
+  `model: "claude-opus-5-5"`, `effort: "low"`, `fallbacks: "default"` (beta
+  `server-side-fallback-2026-07-01`) and a **json_schema structured output**
+  (`ESTIMATE_SCHEMA`: calories, category, rating, prep — enums = the app's own vocab — and a
+  ≤12-word note). The prompt sends only the typed text, the form's local time, and up to 8
+  of the user's own past items sharing words with it (`similarEntries`). The system prompt
+  requires the note to be **neutral** (no judgement, no diet advice — the habit guardrail).
+  The reply is validated (`parseEstimate`; calories clamped 1–5000) and **only fills the
+  form** — never saves — with an "✨ AI estimate · note" line and an Undo toast; it is
+  discarded if "What" changed meanwhile. Refusal / max_tokens / bad JSON / 401 / 429 /
+  other API errors / no connection each give a plain toast and leave the form untouched.
+  Model output is rendered via `textContent` only. Bumping the SDK version: pick a stable
+  release at least two weeks old and re-run the AI tests.
+- **Toasts shrink to fit** (`min-width: 0`): long messages end in "…", Undo stays visible.
 - **`.hidden` is `!important`** so a component rule that sets `display` can never un-hide
   something the code hid.
 - **Live tick:** every 30 s (and on returning to the app / day rollover) the panel
