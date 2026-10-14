@@ -276,7 +276,8 @@
   input[type="text"],
   input[type="number"],
   input[type="date"],
-  input[type="time"] {
+  input[type="time"],
+  input[type="password"] {
     width: 100%;
     padding: 11px 13px;
     border: 1px solid var(--border);
@@ -836,6 +837,7 @@
     align-items: center;
     gap: 14px;
     max-width: 440px;
+    min-width: 0; /* may shrink to the screen; the message then ends in "…" */
     background: #2c2a25;
     color: #fffdfb;
     font-size: 14px;
@@ -1215,6 +1217,29 @@
   }
   @keyframes save-fade { 0%, 70% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
 
+  /* ✨ AI estimates: the button beside "What", the note under calories, settings. */
+  .what-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+  .what-head label { margin-bottom: 0; }
+  .ai-btn {
+    border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent-d);
+    font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
+    padding: 4px 11px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+    transition: background .12s, opacity .12s;
+  }
+  .ai-btn:hover:not(:disabled) { background: #cfeeea; }
+  .ai-btn:disabled { opacity: .5; cursor: default; }
+  .ai-btn.busy { opacity: 1; cursor: progress; animation: ai-breathe 1.1s ease-in-out infinite; }
+  @keyframes ai-breathe { 50% { background: #cfeeea; } }
+  @media (prefers-reduced-motion: reduce) { .ai-btn.busy { animation: none; } }
+  .ai-note { font-size: 12.5px; color: var(--accent-d); font-weight: 600; margin-top: 6px; }
+  .ai-settings { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 16px; }
+  .ai-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+  .ai-settings .data-note { margin: 0 0 12px; }
+  .ai-key-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ai-key-row input { flex: 1; min-width: 180px; }
+  .ai-status { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-top: 8px; }
+  .ai-status.on { color: var(--accent-d); }
+
   /* "Your data" card: backup / restore */
   .data-note { font-size: 13px; color: var(--muted); margin: -8px 0 14px; }
   .data-actions { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -1362,7 +1387,10 @@
         </div>
 
         <div class="field">
-          <label for="what">What</label>
+          <div class="what-head">
+            <label for="what">What</label>
+            <button type="button" class="ai-btn hidden" id="ai-estimate" disabled>✨ Estimate</button>
+          </div>
           <div class="autocomplete-wrap">
             <input type="text" id="what" placeholder="e.g. Chicken sandwich, Coffee, Pizza" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="what-suggestions" aria-autocomplete="list" />
             <ul id="what-suggestions" class="autocomplete hidden" role="listbox"></ul>
@@ -1421,6 +1449,7 @@
         <div class="field">
           <label for="calories">Estimated cals</label>
           <input type="number" id="calories" min="1" step="1" placeholder="e.g. 550" />
+          <div class="ai-note hidden" id="ai-note"></div>
         </div>
 
         <div class="actions">
@@ -1550,6 +1579,18 @@
         <button type="button" class="btn btn-ghost" id="restore-btn">Restore from backup</button>
         <button type="button" class="btn btn-ghost" id="reminders-btn">Calendar reminders</button>
         <input type="file" id="restore-file" accept="application/json,.json" class="hidden" />
+      </div>
+
+      <!-- ✨ AI estimates (opt-in): the user's own Anthropic API key, kept on this device. -->
+      <div class="ai-settings">
+        <h3 class="ai-title">✨ AI estimates</h3>
+        <p class="data-note">Tap <b>✨ Estimate</b> in the Log form and Claude suggests calories, category, rating and prep mode — you review before saving. Uses your own Anthropic API key (get one at console.anthropic.com), about 1¢ per estimate. Only what you typed and a few of your similar past entries are sent, and only when you tap. The key stays on this device, is never included in backups, and can be read by any page on <span id="ai-host">this site</span>.</p>
+        <div class="ai-key-row">
+          <input type="password" id="ai-key" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" aria-label="Anthropic API key" />
+          <button type="button" class="btn btn-primary" id="ai-save">Save key</button>
+          <button type="button" class="btn btn-ghost hidden" id="ai-remove">Remove</button>
+        </div>
+        <div class="ai-status" id="ai-status"></div>
       </div>
     </section>
   </div>
@@ -2026,6 +2067,8 @@
     cancelBtn.classList.add("hidden");
     editingBanner.classList.add("hidden");
     hideSuggestions();
+    hideAiNote();
+    renderAiButton();
     renderQuickLog();
   }
 
@@ -2049,6 +2092,7 @@
     setEntryMode("calories"); // editing is a calorie-only flow
     editingId = entry.id;
     categoryAuto = false;
+    hideAiNote();
     renderQuickLog(); // no one-tap logging while an edit is open
     whatEl.value = entry.what;
     setSelected(categoryGroup, entry.category);
@@ -2458,6 +2502,7 @@
   // (you're logging it again now, not re-using the old timestamp).
   function applySuggestion(rec) {
     categoryAuto = false;
+    hideAiNote(); // values now come from your own history, not the AI
     whatEl.value = rec.what;
     setSelected(categoryGroup, rec.category);
     setSelfAssessment(rec.selfAssessment || "");
@@ -2572,6 +2617,225 @@
   }
   quickRows.forEach(function (row) { row.addEventListener("click", onQuickLogClick); });
   document.getElementById("ql-new").addEventListener("click", function () { openLogTab(); focusLogForm(); });
+
+  // --- ✨ AI estimates (opt-in) ---
+  // Type a food, tap ✨ Estimate, and Claude suggests calories, category, rating
+  // and prep mode, which you review before saving. It uses the user's own
+  // Anthropic API key, kept only in this browser (never in backups). The official
+  // SDK loads from a pinned CDN URL on the first tap, so nothing is fetched (and
+  // no network is used) unless the feature is used.
+  var AI_SETTINGS_KEY = "ai-settings";
+  var AI_SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.131.0/+esm";
+  var AI_MODEL = "claude-opus-5-5";
+  var aiBtn = document.getElementById("ai-estimate");
+  var aiNote = document.getElementById("ai-note");
+  function loadAiSettings() {
+    try {
+      var s = JSON.parse(localStorage.getItem(AI_SETTINGS_KEY) || "null");
+      return { apiKey: s && typeof s.apiKey === "string" ? s.apiKey : "" };
+    } catch (e) {
+      return { apiKey: "" };
+    }
+  }
+  function saveAiSettings() {
+    try {
+      if (aiSettings.apiKey) localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(aiSettings));
+      else localStorage.removeItem(AI_SETTINGS_KEY);
+    } catch (e) { /* storage unavailable: the key lasts for this session only */ }
+  }
+  var aiSettings = loadAiSettings();
+
+  // The SDK module and one client per key, created on first use.
+  var aiSdk = null, aiAnthropic = null, aiClient = null, aiClientKey = "";
+  function getAiClient() {
+    if (!aiSdk) aiSdk = import(AI_SDK_URL).catch(function (err) { aiSdk = null; throw err; });
+    return aiSdk.then(function (mod) {
+      aiAnthropic = mod.default;
+      if (!aiClient || aiClientKey !== aiSettings.apiKey) {
+        // dangerouslyAllowBrowser: the key lives in the browser by design (BYO key,
+        // single user). maxRetries 1: a tap should fail fast rather than hang.
+        aiClient = new aiAnthropic({ apiKey: aiSettings.apiKey, dangerouslyAllowBrowser: true, timeout: 30000, maxRetries: 1 });
+        aiClientKey = aiSettings.apiKey;
+      }
+      return aiClient;
+    });
+  }
+
+  // Structured output: the reply must match this schema exactly. (Numeric bounds
+  // aren't supported in schemas, so calories are clamped after parsing.)
+  var ESTIMATE_SCHEMA = {
+    type: "object",
+    properties: {
+      estimatedCalories: { type: "integer", description: "Best single estimate in kcal." },
+      category: { type: "string", enum: CATEGORIES },
+      selfAssessment: { type: "string", enum: SELF_ASSESSMENTS },
+      prepMode: { type: "string", enum: [""].concat(PREP_MODES) },
+      note: { type: "string", description: "At most 12 words: the portion or recipe assumed." }
+    },
+    required: ["estimatedCalories", "category", "selfAssessment", "prepMode", "note"],
+    additionalProperties: false
+  };
+  var ESTIMATE_SYSTEM = [
+    "You estimate food and drink entries for Habitrack, a personal calorie log. The user types what they ate or drank; you return the fields the app records.",
+    "",
+    "- estimatedCalories: your best single estimate in kcal for what was typed. If no quantity is given, assume one typical single serving. When the user's own similar past entries are provided, calibrate to them: they reflect this person's usual portions.",
+    "- category: one of " + CATEGORIES.join(", ") + ". Drinks are Beverage. Otherwise go by the food and the local time it was eaten.",
+    "- selfAssessment: how healthy it is, on the app's 4-step scale: Nasty (heavily processed or very indulgent), Okay (fine now and then), Healthy-ish (mostly wholesome with some less healthy parts), Healthy (wholesome and balanced). The user reviews and can change it.",
+    "- prepMode: one of " + PREP_MODES.join(", ") + ", or an empty string when the text doesn't suggest one.",
+    "- note: at most 12 words stating the portion or recipe you assumed, e.g. \"assumes one large wrap with dressing\". Neutral and factual: no judgement, no advice, nothing about dieting or weight."
+  ].join("\n");
+
+  // Up to 8 of the user's own past items that share words with the typed text,
+  // so the estimate matches their usual portions.
+  function similarEntries(text) {
+    function words(s) { return String(s).toLowerCase().split(/[^a-z0-9À-ɏ]+/).filter(function (w) { return w.length >= 3; }); }
+    var want = words(text);
+    if (!want.length) return [];
+    return canonicalByWhat().map(function (en) {
+      var have = words(en.what), score = 0;
+      want.forEach(function (w) { if (have.indexOf(w) !== -1) score++; });
+      return { en: en, score: score };
+    }).filter(function (x) { return x.score > 0; }).sort(function (a, b) {
+      return (b.score - a.score) || (a.en.timestamp < b.en.timestamp ? 1 : a.en.timestamp > b.en.timestamp ? -1 : 0);
+    }).slice(0, 8).map(function (x) { return x.en; });
+  }
+  function estimatePrompt(text) {
+    var d = dateEl.value ? new Date(dateEl.value + "T00:00:00") : new Date();
+    var lines = ['Entry: "' + text + '"', "Local time: " + (timeEl.value || timeStr(new Date())) + " on a " + FULL_DOW[d.getDay()]];
+    var past = similarEntries(text);
+    if (past.length) {
+      lines.push("", "My similar past entries (what, kcal, category, rating, prep):");
+      past.forEach(function (en) {
+        lines.push("- " + en.what + " | " + en.estimatedCalories + " | " + en.category + " | " + (en.selfAssessment || "unrated") + " | " + (en.prepMode || "-"));
+      });
+    }
+    return lines.join("\n");
+  }
+  // Validate the model's JSON against the app's vocab; null if unusable.
+  function parseEstimate(text) {
+    var o;
+    try { o = JSON.parse(text); } catch (e) { return null; }
+    if (!o || typeof o !== "object") return null;
+    var cals = Number(o.estimatedCalories);
+    if (!isFinite(cals) || cals <= 0 || CATEGORIES.indexOf(o.category) === -1) return null;
+    return {
+      estimatedCalories: Math.min(5000, Math.max(1, Math.round(cals))),
+      category: o.category,
+      selfAssessment: SELF_ASSESSMENTS.indexOf(o.selfAssessment) !== -1 ? o.selfAssessment : "",
+      prepMode: PREP_MODES.indexOf(o.prepMode) !== -1 ? o.prepMode : "",
+      note: typeof o.note === "string" ? o.note.trim().slice(0, 120) : ""
+    };
+  }
+  function aiFail(msg) { var e = new Error(msg); e.aiMessage = msg; return e; }
+  // Most specific first, using the SDK's typed errors.
+  function aiErrorMessage(err) {
+    if (err && err.aiMessage) return err.aiMessage;
+    var A = aiAnthropic;
+    if (A && err instanceof A.AuthenticationError) return "Your API key was rejected — check it in History → Your data";
+    if (A && err instanceof A.RateLimitError) return "Claude is busy right now — try again in a moment";
+    if (A && err instanceof A.APIConnectionError) return "Couldn't reach Claude — check your connection";
+    if (A && err instanceof A.APIError) return "Estimate failed (" + (err.status || "error") + ") — try again";
+    return "Couldn't reach Claude — check your connection"; // e.g. the SDK itself failed to load
+  }
+
+  var aiBusy = false;
+  function renderAiButton() {
+    aiBtn.classList.toggle("hidden", !aiSettings.apiKey);
+    aiBtn.disabled = aiBusy || !whatEl.value.trim();
+    aiBtn.classList.toggle("busy", aiBusy);
+    aiBtn.textContent = aiBusy ? "Estimating…" : "✨ Estimate";
+  }
+  function hideAiNote() { aiNote.classList.add("hidden"); aiNote.textContent = ""; }
+
+  function runEstimate() {
+    var asked = whatEl.value.trim();
+    if (!asked || aiBusy || !aiSettings.apiKey) return;
+    aiBusy = true;
+    renderAiButton();
+    hideSuggestions();
+    getAiClient().then(function (client) {
+      return client.beta.messages.create({
+        model: AI_MODEL,
+        max_tokens: 16000, // thinking counts toward it; only tokens actually used are billed
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default", // if a request is ever declined, Anthropic retries it on a suitable model
+        output_config: { effort: "low", format: { type: "json_schema", schema: ESTIMATE_SCHEMA } },
+        system: ESTIMATE_SYSTEM,
+        messages: [{ role: "user", content: estimatePrompt(asked) }]
+      });
+    }).then(function (res) {
+      if (res.stop_reason === "refusal") throw aiFail("Couldn't estimate that one — try describing it differently");
+      if (res.stop_reason === "max_tokens") throw aiFail("The estimate was cut short — try again");
+      var text = "";
+      (res.content || []).forEach(function (b) { if (b.type === "text") text = b.text; });
+      var est = parseEstimate(text);
+      if (!est) throw aiFail("Couldn't read the estimate — try again");
+      // The user changed the entry (or saved/cleared it) while waiting: don't fill.
+      if (whatEl.value.trim() !== asked || editingId) return;
+      applyEstimate(est);
+    }).catch(function (err) {
+      if (window.console) console.warn("AI estimate failed:", err);
+      showToast(aiErrorMessage(err));
+    }).then(function () {
+      aiBusy = false;
+      renderAiButton();
+    });
+  }
+
+  // Fill the form (nothing is saved): Undo puts back what was there before.
+  function applyEstimate(est) {
+    var before = {
+      calories: caloriesEl.value, category: getSelected(categoryGroup), auto: categoryAuto,
+      self: getSelfAssessment(), prep: getSelected(prepGroup)
+    };
+    caloriesEl.value = est.estimatedCalories;
+    categoryAuto = false;
+    setSelected(categoryGroup, est.category);
+    setSelfAssessment(est.selfAssessment);
+    setSelected(prepGroup, est.prepMode);
+    aiNote.textContent = "✨ AI estimate" + (est.note ? " · " + est.note : ""); // model output: text only
+    aiNote.classList.remove("hidden");
+    showToast("✨ ~" + fmtNum(est.estimatedCalories) + " cal" + (est.note ? " · " + est.note : ""), "Undo", function () {
+      caloriesEl.value = before.calories;
+      setSelected(categoryGroup, before.category);
+      categoryAuto = before.auto;
+      setSelfAssessment(before.self);
+      setSelected(prepGroup, before.prep);
+      hideAiNote();
+    });
+  }
+  aiBtn.addEventListener("click", runEstimate);
+  whatEl.addEventListener("input", renderAiButton);
+  caloriesEl.addEventListener("input", hideAiNote); // edited by hand: no longer the AI's number
+
+  // Settings (History → Your data).
+  var aiKeyEl = document.getElementById("ai-key");
+  function renderAiSettings() {
+    var on = !!aiSettings.apiKey;
+    var st = document.getElementById("ai-status");
+    st.textContent = on ? "On — key ending …" + aiSettings.apiKey.slice(-4) : "Off — no key saved";
+    st.classList.toggle("on", on);
+    document.getElementById("ai-remove").classList.toggle("hidden", !on);
+    document.getElementById("ai-save").textContent = on ? "Replace key" : "Save key";
+    renderAiButton();
+  }
+  document.getElementById("ai-host").textContent = location.host || "this site";
+  document.getElementById("ai-save").addEventListener("click", function () {
+    var k = aiKeyEl.value.trim();
+    if (!k) { aiKeyEl.focus(); return; }
+    aiSettings.apiKey = k;
+    saveAiSettings();
+    aiKeyEl.value = "";
+    renderAiSettings();
+    showToast("✨ AI estimates are on — find ✨ Estimate in the Log form");
+  });
+  document.getElementById("ai-remove").addEventListener("click", function () {
+    aiSettings.apiKey = "";
+    aiClient = null;
+    saveAiSettings();
+    renderAiSettings();
+    showToast("AI estimates off — the key was removed from this device");
+  });
 
   // --- Save celebration ---
   // A logo-like checkmark pops in the middle of the screen (blue for weight) plus
@@ -4530,7 +4794,7 @@
   // While typing on mobile the tab bar steps aside (see CSS), so it can never sit
   // on top of the field in use.
   function isTextField(el) {
-    return !!el && (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && /^(text|number|date|time|search|email)$/.test(el.type)));
+    return !!el && (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && /^(text|number|date|time|search|email|password)$/.test(el.type)));
   }
   var tabPlus = document.querySelector("#tab-log .tab-plus");
   function syncKbOpen() { document.body.classList.toggle("kb-open", isTextField(document.activeElement)); }
@@ -4553,6 +4817,7 @@
   resetWeightForm();
   setEntryMode("calories");
   showTab(tabFromHash());
+  renderAiSettings();
   render();
   if (!entries.length && !weightEntries.length && !habitState.onboarded) openWelcome();
 })();
